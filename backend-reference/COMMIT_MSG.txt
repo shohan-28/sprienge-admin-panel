@@ -1,0 +1,5 @@
+Add backend scaffold for Core MVP: Express + Mongoose
+
+Scaffold server, models (Order, Customer, Product, Supplier, AuditLog), routes, services, and config.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
