@@ -57,7 +57,12 @@ const orderSchema = new mongoose.Schema(
       default: 'pending',
     },
   },
-  { timestamps: true }
+  { timestamps: true, toObject: { virtuals: true }, toJSON: { virtuals: true } }
 );
+
+// Virtual alias for front-end: provide orderId which equals the document _id string
+orderSchema.virtual('orderId').get(function () {
+  return this._id ? this._id.toString() : null;
+});
 
 module.exports = mongoose.model('Order', orderSchema);
