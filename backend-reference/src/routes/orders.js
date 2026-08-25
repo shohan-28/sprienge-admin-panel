@@ -6,7 +6,7 @@ const steadfast = require('../services/steadfastService');
 const { recordAudit } = require('../services/auditService');
 
 function getAdminIdFromReq(req, fallback) {
-  return req.body.adminId || req.body.updatedBy || req.body.createdBy || fallback || 'system';
+  return (req.admin && req.admin._id) || req.body.adminId || req.body.updatedBy || req.body.createdBy || fallback || 'system';
 }
 
 async function updateCustomerStatsForOrder(order) {
@@ -45,10 +45,12 @@ async function updateCustomerStatsForOrder(order) {
   }
 }
 
-// Create order
-router.post('/', async (req, res) => {
+// Create order (protected)
+const { requireAuth } = require('../middleware/auth');
+router.post('/', requireAuth, async (req, res) => {
   try {
-    const order = new Order(req.body);
+    const payload = Object.assign({}, req.body, { createdBy: req.admin ? String(req.admin._id) : req.body.createdBy });
+    const order = new Order(payload);
     await order.save();
 
     // Update customer aggregates (totalOrders, totalSpent, lifetime tag)
@@ -150,8 +152,8 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Confirm order + optional parcel creation
-router.post('/:id/confirm', async (req, res) => {
+// Confirm order + optional parcel creation (protected)
+router.post('/:id/confirm', requireAuth, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -205,8 +207,8 @@ router.post('/:id/confirm', async (req, res) => {
   }
 });
 
-// Create / retry parcel
-router.post('/:id/create-parcel', async (req, res) => {
+// Create / retry parcel (protected)
+router.post('/:id/create-parcel', requireAuth, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });

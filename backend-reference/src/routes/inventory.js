@@ -19,12 +19,17 @@ router.get('/', async (req, res) => {
   res.json(products);
 });
 
+const { requireAuth } = require('../middleware/auth');
+const { recordAudit } = require('../services/auditService');
+
 // Stock in (increase by qty) — supports variant sku or product-level
-router.post('/stock-in', async (req, res) => {
+router.post('/stock-in', requireAuth, async (req, res) => {
   try {
     const { productId, variantSku, qty } = req.body;
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    const before = product.toObject();
 
     if (variantSku) {
       const v = product.variants.find(x => x.sku === variantSku);
@@ -35,6 +40,17 @@ router.post('/stock-in', async (req, res) => {
     }
 
     await product.save();
+
+    // Audit record
+    await recordAudit({
+      action: 'stock_in',
+      collection: 'products',
+      docId: product._id,
+      adminId: req.admin ? String(req.admin._id) : 'system',
+      before,
+      after: product.toObject(),
+    });
+
     res.json(product);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -42,11 +58,13 @@ router.post('/stock-in', async (req, res) => {
 });
 
 // Stock out (decrease)
-router.post('/stock-out', async (req, res) => {
+router.post('/stock-out', requireAuth, async (req, res) => {
   try {
     const { productId, variantSku, qty } = req.body;
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    const before = product.toObject();
 
     if (variantSku) {
       const v = product.variants.find(x => x.sku === variantSku);
@@ -57,6 +75,17 @@ router.post('/stock-out', async (req, res) => {
     }
 
     await product.save();
+
+    // Audit record
+    await recordAudit({
+      action: 'stock_out',
+      collection: 'products',
+      docId: product._id,
+      adminId: req.admin ? String(req.admin._id) : 'system',
+      before,
+      after: product.toObject(),
+    });
+
     res.json(product);
   } catch (err) {
     res.status(500).json({ error: err.message });
