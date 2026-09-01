@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #fed7aa;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-in {
+  animation: fadeSlideUp 0.35s ease both;
+}
+
+:focus-visible {
+  outline: 2px solid #ea580c;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Print-friendly invoice view (OrderDetails "Print" button) */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .print-area {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------
+   Dark mode — applied via a CSS-level override rather than editing every
+   component's className, so it works consistently across all pages that
+   already use the same handful of recurring utility classes (bg-white
+   cards, border-mist-200, text-ink-900, bg-mist-50 page background, etc).
+   Toggled by adding/removing the "dark" class on <html> — see Topbar.jsx.
+-------------------------------------------------------------------- */
+.dark body {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
+.dark .bg-mist-50 {
+  background-color: #0b1220 !important;
+}
+.dark .bg-mist-50\/80 {
+  background-color: rgba(11, 18, 32, 0.85) !important;
+}
+.dark .bg-white {
+  background-color: #111a2e !important;
+}
+.dark .border-mist-200 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark .border-mist-100,
+.dark .divide-mist-100 > * + * {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+.dark .bg-mist-100 {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+.dark .hover\:bg-mist-100:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+.dark .hover\:bg-mist-50:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+.dark .text-ink-900 {
+  color: #f1f5f9 !important;
+}
+.dark .text-slate-500,
+.dark .text-slate-600 {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-400,
+.dark .text-slate-300 {
+  color: #64748b !important;
+}
+.dark .shadow-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
