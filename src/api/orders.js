@@ -64,14 +64,27 @@ export const getOrder = async (id) => {
   throw new Error("Invalid order response");
 };
 
-export const getOrder = async (id) => {
-  if (!id) {
-    throw new Error("Order ID is required");
+export const getOrders = async () => {
+  const response = await api.get("/orders");
+
+  const data = response.data;
+
+  // Backend response:
+  // {
+  //   success: true,
+  //   orders: [...]
+  // }
+
+  if (Array.isArray(data?.orders)) {
+    return data.orders;
   }
 
-  const response = await api.get(`/orders/${id}`);
+  // Fallback যদি সরাসরি array আসে
+  if (Array.isArray(data)) {
+    return data;
+  }
 
-  return response.data;
+  return [];
 };
 
 export const updateOrderStatus = async (
