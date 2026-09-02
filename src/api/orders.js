@@ -37,10 +37,31 @@ export const normalizePhone = (phone) => {
 // Orders
 // ======================================================
 
-export const getOrders = async () => {
-  const response = await api.get("/orders");
+export const getOrder = async (id) => {
+  if (!id) {
+    throw new Error("Order ID is required");
+  }
 
-  return response.data;
+  const response = await api.get(`/orders/${id}`);
+
+  const data = response.data;
+
+  // Backend response:
+  // {
+  //   success: true,
+  //   order: {...}
+  // }
+
+  if (data?.order) {
+    return data.order;
+  }
+
+  // Fallback যদি কোনোদিন direct order পাঠানো হয়
+  if (data?._id) {
+    return data;
+  }
+
+  throw new Error("Invalid order response");
 };
 
 export const getOrder = async (id) => {
