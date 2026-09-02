@@ -93,17 +93,44 @@ const Orders = () => {
   const [rowProgress, setRowProgress] = useState({});
 
   const load = () => {
-    setLoading(true);
-    getOrders()
-      .then(setOrders)
-      .catch(() => setErr("অর্ডার লোড করা যায়নি। Backend চলছে কিনা চেক করুন।"))
-      .finally(() => setLoading(false));
-    setAssignments(getAllAssignments());
-  };
+  getOrders()
+    .then((data) => {
+      // API থেকে array না এলে safe ভাবে handle করবে
+      const orderList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.orders)
+        ? data.orders
+        : Array.isArray(data?.data)
+        ? data.data
+        : [];
 
-  useEffect(() => {
+      setOrders(orderList);
+      setErr("");
+    })
+    .catch((error) => {
+      console.error("Orders Load Error:", error);
+      setErr("অর্ডার লোড করা যায়নি। Backend চলছে কিনা চেক করুন।");
+      setOrders([]);
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+
+  setAssignments(getAllAssignments());
+};
+
+useEffect(() => {
+  // প্রথমবার orders load
+  load();
+
+  // প্রতি 3 সেকেন্ড পরপর নতুন orders fetch
+  const interval = setInterval(() => {
     load();
-  }, []);
+  }, 3000);
+
+  // component unmount হলে interval বন্ধ
+  return () => clearInterval(interval);
+}, []);
 
   const filtered = useMemo(() => {
     let list = orders.filter((o) => {
@@ -236,7 +263,9 @@ const Orders = () => {
     });
   };
 
-  const selectedOrders = orders.filter((o) => selected.has(o._id));
+  const selectedOrders = Array.isArray(orders)
+  ? orders.filter((o) => selected.has(o._id))
+  : [];
 
   const handleBulkCreateAndPrint = async () => {
     if (selectedOrders.length === 0) return;
