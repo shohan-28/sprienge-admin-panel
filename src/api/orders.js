@@ -34,6 +34,41 @@ export const normalizePhone = (phone) => {
 };
 
 // ======================================================
+// Response Unwrap Helpers
+// ======================================================
+
+/**
+ * ব্যাকএন্ড অর্ডার-সম্পর্কিত এন্ডপয়েন্টে সাধারণত এই দুই ফরম্যাটে রেসপন্স দেয়:
+ *   { success: true, order: {...} }   বা
+ *   { ...orderFieldsDirectly }
+ * এই হেল্পার দুটোই handle করে, যাতে প্রতিটা API কলে আলাদা করে
+ * unwrap লজিক লিখতে না হয়।
+ */
+const unwrapOrder = (data) => {
+  if (data?.order && typeof data.order === "object") {
+    return data.order;
+  }
+
+  if (data?._id) {
+    return data;
+  }
+
+  throw new Error("Invalid order response");
+};
+
+const unwrapOrders = (data) => {
+  if (Array.isArray(data?.orders)) {
+    return data.orders;
+  }
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  return [];
+};
+
+// ======================================================
 // Orders
 // ======================================================
 
@@ -44,47 +79,13 @@ export const getOrder = async (id) => {
 
   const response = await api.get(`/orders/${id}`);
 
-  const data = response.data;
-
-  // Backend response:
-  // {
-  //   success: true,
-  //   order: {...}
-  // }
-
-  if (data?.order) {
-    return data.order;
-  }
-
-  // Fallback যদি কোনোদিন direct order পাঠানো হয়
-  if (data?._id) {
-    return data;
-  }
-
-  throw new Error("Invalid order response");
+  return unwrapOrder(response.data);
 };
 
 export const getOrders = async () => {
   const response = await api.get("/orders");
 
-  const data = response.data;
-
-  // Backend response:
-  // {
-  //   success: true,
-  //   orders: [...]
-  // }
-
-  if (Array.isArray(data?.orders)) {
-    return data.orders;
-  }
-
-  // Fallback যদি সরাসরি array আসে
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  return [];
+  return unwrapOrders(response.data);
 };
 
 export const updateOrderStatus = async (
@@ -106,7 +107,7 @@ export const updateOrderStatus = async (
     }
   );
 
-  return response.data;
+  return unwrapOrder(response.data);
 };
 
 export const updateOrder = async (
@@ -122,7 +123,7 @@ export const updateOrder = async (
     data
   );
 
-  return response.data;
+  return unwrapOrder(response.data);
 };
 
 export const deleteOrder = async (id) => {
@@ -156,7 +157,7 @@ export const confirmOrder = async (
     }
   );
 
-  return response.data;
+  return unwrapOrder(response.data);
 };
 
 export const createSteadfastParcel = async (
@@ -174,7 +175,7 @@ export const createSteadfastParcel = async (
     }
   );
 
-  return response.data;
+  return unwrapOrder(response.data);
 };
 
 export const retryFailedParcel = async (id) => {
@@ -189,7 +190,7 @@ export const retryFailedParcel = async (id) => {
     }
   );
 
-  return response.data;
+  return unwrapOrder(response.data);
 };
 
 // ======================================================
@@ -215,7 +216,7 @@ export const setPrintStatus = async (
     }
   );
 
-  return response.data;
+  return unwrapOrder(response.data);
 };
 
 // ======================================================
