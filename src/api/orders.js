@@ -4,7 +4,7 @@
 
 const RAW_API_URL =
   import.meta.env.VITE_API_URL ||
-  "https://sprienge-backend.onrender.com/api";
+  "https://ourbackend.spriengge.shop/api";
 
 /*
   Prevent duplicate paths like:
