@@ -15,6 +15,13 @@ import {
   Ruler,
   AlertCircle,
   CheckCircle2,
+  FileText,
+  List,
+  Settings2,
+  Truck,
+  RotateCcw,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 
 import AdminLayout from "../layouts/AdminLayout.jsx";
@@ -29,6 +36,13 @@ import api from "../api/axios.js";
 const currency = (n) =>
   `৳${Number(n || 0).toLocaleString("en-BD")}`;
 
+const createEmptyListItem = () => "";
+
+const createEmptySpec = () => ({
+  key: "",
+  value: "",
+});
+
 const emptyVariant = () => ({
   variantId: `variant-${Date.now()}-${Math.random()
     .toString(36)
@@ -36,6 +50,7 @@ const emptyVariant = () => ({
   color: "",
   colorCode: "#000000",
   price: "",
+  oldPrice: "",
   image: "",
   sizes: [
     {
@@ -45,15 +60,33 @@ const emptyVariant = () => ({
   ],
 });
 
-const emptyNewProduct = {
+const emptyNewProduct = () => ({
   name: "",
   price: "",
+  oldPrice: "",
+  brand: "",
+  category: "",
   image: "",
   sku: "",
   stock: "",
+  description: "",
+
+  details: {
+    shortDescription: "",
+    overview: "",
+    features: [createEmptyListItem()],
+    specifications: [createEmptySpec()],
+    howToUse: [createEmptyListItem()],
+    careInstructions: [createEmptyListItem()],
+    whatsIncluded: [createEmptyListItem()],
+    deliveryInfo: "",
+    returnPolicy: "",
+    warranty: "",
+  },
+
   hasVariants: true,
   variants: [emptyVariant()],
-};
+});
 
 const CreateOrder = () => {
   // =========================================================
@@ -136,7 +169,7 @@ const CreateOrder = () => {
     useState(false);
 
   const [newProduct, setNewProduct] =
-    useState(emptyNewProduct);
+    useState(emptyNewProduct());
 
   const [savingProduct, setSavingProduct] =
     useState(false);
@@ -173,16 +206,6 @@ const CreateOrder = () => {
 
   const [statusModal, setStatusModal] =
     useState(null);
-
-  /*
-    statusModal structure:
-
-    {
-      type: "success" | "error",
-      title: "...",
-      message: "..."
-    }
-  */
 
   // =========================================================
   // LOAD PRODUCTS
@@ -249,11 +272,17 @@ const CreateOrder = () => {
       return inTenant;
     }
 
-    return inTenant.filter((p) =>
-      String(p.name || "")
-        .toLowerCase()
-        .includes(query)
-    );
+    return inTenant.filter((p) => {
+      const name = String(p.name || "").toLowerCase();
+      const brand = String(p.brand || "").toLowerCase();
+      const sku = String(p.sku || "").toLowerCase();
+
+      return (
+        name.includes(query) ||
+        brand.includes(query) ||
+        sku.includes(query)
+      );
+    });
   }, [products, productQuery, tenantId]);
 
   // =========================================================
@@ -273,8 +302,6 @@ const CreateOrder = () => {
 
   // =========================================================
   // MONGODB ID
-  // IMPORTANT:
-  // DELETE এর জন্য _id ব্যবহার হবে
   // =========================================================
 
   const getMongoProductId = (product) => {
@@ -533,7 +560,6 @@ const CreateOrder = () => {
 
     const variantId =
       variant.variantId ||
-      variant._id ||
       "";
 
     const color =
@@ -697,7 +723,7 @@ const CreateOrder = () => {
   };
 
   // =========================================================
-  // NEW PRODUCT - UPDATE
+  // NEW PRODUCT - BASIC UPDATE
   // =========================================================
 
   const updateNewProduct = (field, value) => {
@@ -705,6 +731,188 @@ const CreateOrder = () => {
       ...prev,
       [field]: value,
     }));
+  };
+
+  // =========================================================
+  // UPDATE PRODUCT DETAILS FIELD
+  // =========================================================
+
+  const updateProductDetail = (
+    field,
+    value
+  ) => {
+    setNewProduct((prev) => ({
+      ...prev,
+      details: {
+        ...(prev.details || {}),
+        [field]: value,
+      },
+    }));
+  };
+
+  // =========================================================
+  // LIST FIELD UPDATE
+  // features / howToUse / careInstructions /
+  // whatsIncluded
+  // =========================================================
+
+  const updateDetailListItem = (
+    field,
+    index,
+    value
+  ) => {
+    setNewProduct((prev) => {
+      const current =
+        Array.isArray(prev.details?.[field])
+          ? [...prev.details[field]]
+          : [""];
+
+      current[index] = value;
+
+      return {
+        ...prev,
+        details: {
+          ...(prev.details || {}),
+          [field]: current,
+        },
+      };
+    });
+  };
+
+  // =========================================================
+  // ADD DETAIL LIST ITEM
+  // =========================================================
+
+  const addDetailListItem = (field) => {
+    setNewProduct((prev) => {
+      const current =
+        Array.isArray(prev.details?.[field])
+          ? [...prev.details[field]]
+          : [];
+
+      current.push("");
+
+      return {
+        ...prev,
+        details: {
+          ...(prev.details || {}),
+          [field]: current,
+        },
+      };
+    });
+  };
+
+  // =========================================================
+  // REMOVE DETAIL LIST ITEM
+  // =========================================================
+
+  const removeDetailListItem = (
+    field,
+    index
+  ) => {
+    setNewProduct((prev) => {
+      const current =
+        Array.isArray(prev.details?.[field])
+          ? [...prev.details[field]]
+          : [];
+
+      current.splice(index, 1);
+
+      if (current.length === 0) {
+        current.push("");
+      }
+
+      return {
+        ...prev,
+        details: {
+          ...(prev.details || {}),
+          [field]: current,
+        },
+      };
+    });
+  };
+
+  // =========================================================
+  // SPECIFICATION UPDATE
+  // =========================================================
+
+  const updateSpecification = (
+    index,
+    field,
+    value
+  ) => {
+    setNewProduct((prev) => {
+      const specifications = Array.isArray(
+        prev.details?.specifications
+      )
+        ? [...prev.details.specifications]
+        : [createEmptySpec()];
+
+      specifications[index] = {
+        ...(specifications[index] || {}),
+        [field]: value,
+      };
+
+      return {
+        ...prev,
+        details: {
+          ...(prev.details || {}),
+          specifications,
+        },
+      };
+    });
+  };
+
+  // =========================================================
+  // ADD SPECIFICATION
+  // =========================================================
+
+  const addSpecification = () => {
+    setNewProduct((prev) => {
+      const specifications = Array.isArray(
+        prev.details?.specifications
+      )
+        ? [...prev.details.specifications]
+        : [];
+
+      specifications.push(createEmptySpec());
+
+      return {
+        ...prev,
+        details: {
+          ...(prev.details || {}),
+          specifications,
+        },
+      };
+    });
+  };
+
+  // =========================================================
+  // REMOVE SPECIFICATION
+  // =========================================================
+
+  const removeSpecification = (index) => {
+    setNewProduct((prev) => {
+      const specifications = Array.isArray(
+        prev.details?.specifications
+      )
+        ? [...prev.details.specifications]
+        : [];
+
+      specifications.splice(index, 1);
+
+      if (specifications.length === 0) {
+        specifications.push(createEmptySpec());
+      }
+
+      return {
+        ...prev,
+        details: {
+          ...(prev.details || {}),
+          specifications,
+        },
+      };
+    });
   };
 
   // =========================================================
@@ -788,7 +996,7 @@ const CreateOrder = () => {
         ...variants[variantIndex],
         sizes: [
           ...(Array.isArray(
-            variants[variantIndex].sizes
+            variants[variantIndex]?.sizes
           )
             ? variants[variantIndex].sizes
             : []),
@@ -824,9 +1032,7 @@ const CreateOrder = () => {
       const sizes = Array.isArray(
         variants[variantIndex]?.sizes
       )
-        ? [
-            ...variants[variantIndex].sizes,
-          ]
+        ? [...variants[variantIndex].sizes]
         : [];
 
       sizes.splice(sizeIndex, 1);
@@ -863,9 +1069,7 @@ const CreateOrder = () => {
       const sizes = Array.isArray(
         variants[variantIndex]?.sizes
       )
-        ? [
-            ...variants[variantIndex].sizes,
-          ]
+        ? [...variants[variantIndex].sizes]
         : [];
 
       sizes[sizeIndex] = {
@@ -890,15 +1094,56 @@ const CreateOrder = () => {
   // =========================================================
 
   const resetNewProduct = () => {
-    setNewProduct({
-      name: "",
-      price: "",
-      image: "",
-      sku: "",
-      stock: "",
-      hasVariants: true,
-      variants: [emptyVariant()],
-    });
+    setNewProduct(emptyNewProduct());
+  };
+
+  // =========================================================
+  // CLEAN LIST
+  // =========================================================
+
+  const cleanList = (value) => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .map((item) =>
+        String(item ?? "").trim()
+      )
+      .filter(Boolean);
+  };
+
+  // =========================================================
+  // BUILD SPECIFICATIONS OBJECT
+  // =========================================================
+
+  const buildSpecifications = () => {
+    const rows = Array.isArray(
+      newProduct.details?.specifications
+    )
+      ? newProduct.details.specifications
+      : [];
+
+    return Object.fromEntries(
+      rows
+        .map((row) => ({
+          key: String(
+            row?.key ?? ""
+          ).trim(),
+          value: String(
+            row?.value ?? ""
+          ).trim(),
+        }))
+        .filter(
+          (row) =>
+            row.key &&
+            row.value
+        )
+        .map((row) => [
+          row.key,
+          row.value,
+        ])
+    );
   };
 
   // =========================================================
@@ -926,7 +1171,7 @@ const CreateOrder = () => {
         type: "error",
         title: "Invalid price",
         message:
-          "প্রোডাক্টের দাম সঠিকভাবে দিন।",
+          "প্রোডাক্টের Base Price সঠিকভাবে দিন।",
       });
 
       return;
@@ -961,28 +1206,36 @@ const CreateOrder = () => {
                 .filter(
                   (size) =>
                     String(
-                      size.size || ""
+                      size?.size || ""
                     ).trim()
                 )
                 .map((size) => ({
                   size: String(
                     size.size || ""
                   ).trim(),
+
                   stock: Math.max(
                     0,
-                    Number(size.stock || 0)
+                    Number(
+                      size.stock || 0
+                    )
                   ),
                 }))
             : [];
 
           const sizeStock = sizes.reduce(
             (sum, size) =>
-              sum + Number(size.stock || 0),
+              sum +
+              Number(
+                size.stock || 0
+              ),
             0
           );
 
           const directStock =
-            Number(variant.stock || 0);
+            Number(
+              variant.stock || 0
+            );
 
           const stock =
             sizes.length > 0
@@ -990,15 +1243,32 @@ const CreateOrder = () => {
               : directStock;
 
           const variantPrice =
-            Number(variant.price || 0) >
-            0
-              ? Number(variant.price)
-              : Number(newProduct.price);
+            Number(
+              variant.price || 0
+            ) > 0
+              ? Number(
+                  variant.price
+                )
+              : Number(
+                  newProduct.price
+                );
+
+          const variantOldPrice =
+            Number(
+              variant.oldPrice || 0
+            ) > 0
+              ? Number(
+                  variant.oldPrice
+                )
+              : Number(
+                  newProduct.oldPrice || 0
+                );
 
           return {
             variantId:
               String(
-                variant.variantId || ""
+                variant.variantId ||
+                  ""
               ).trim() ||
               `variant-${Date.now()}-${index}`,
 
@@ -1007,12 +1277,15 @@ const CreateOrder = () => {
             ).trim(),
 
             colorCode:
-              variant.colorCode ||
-              "#000000",
+              String(
+                variant.colorCode ||
+                  "#000000"
+              ).trim(),
 
             price: variantPrice,
 
-            oldPrice: 0,
+            oldPrice:
+              variantOldPrice,
 
             stock,
 
@@ -1045,7 +1318,132 @@ const CreateOrder = () => {
 
         return;
       }
+
+      const duplicateVariantIds =
+        variants.filter(
+          (variant, index, array) =>
+            array.findIndex(
+              (item) =>
+                item.variantId ===
+                variant.variantId
+            ) !== index
+        );
+
+      if (
+        duplicateVariantIds.length > 0
+      ) {
+        setStatusModal({
+          type: "error",
+          title: "Duplicate Variant ID",
+          message:
+            "প্রতিটি Variant-এর unique Variant ID থাকতে হবে।",
+        });
+
+        return;
+      }
+
+      for (
+        let i = 0;
+        i < variants.length;
+        i++
+      ) {
+        const variant = variants[i];
+
+        if (
+          Array.isArray(
+            variant.sizes
+          ) &&
+          variant.sizes.length > 0
+        ) {
+          const sizeNames =
+            variant.sizes.map(
+              (size) =>
+                size.size.toLowerCase()
+            );
+
+          const duplicateSizes =
+            sizeNames.some(
+              (size, index) =>
+                sizeNames.indexOf(
+                  size
+                ) !== index
+            );
+
+          if (duplicateSizes) {
+            setStatusModal({
+              type: "error",
+              title: "Duplicate Size",
+              message:
+                `Color "${variant.color}"-এ একই Size একাধিকবার দেওয়া হয়েছে।`,
+            });
+
+            return;
+          }
+        }
+      }
     }
+
+    const specifications =
+      buildSpecifications();
+
+    const details = {
+      shortDescription:
+        String(
+          newProduct.details
+            ?.shortDescription ||
+            ""
+        ).trim(),
+
+      overview:
+        String(
+          newProduct.details
+            ?.overview || ""
+        ).trim(),
+
+      features: cleanList(
+        newProduct.details
+          ?.features
+      ),
+
+      specifications,
+
+      howToUse: cleanList(
+        newProduct.details
+          ?.howToUse
+      ),
+
+      careInstructions:
+        cleanList(
+          newProduct.details
+            ?.careInstructions
+        ),
+
+      whatsIncluded:
+        cleanList(
+          newProduct.details
+            ?.whatsIncluded
+        ),
+
+      deliveryInfo:
+        String(
+          newProduct.details
+            ?.deliveryInfo ||
+            ""
+        ).trim(),
+
+      returnPolicy:
+        String(
+          newProduct.details
+            ?.returnPolicy ||
+            ""
+        ).trim(),
+
+      warranty:
+        String(
+          newProduct.details
+            ?.warranty || ""
+        ).trim(),
+    };
 
     setSavingProduct(true);
 
@@ -1054,22 +1452,55 @@ const CreateOrder = () => {
         variants.reduce(
           (sum, variant) =>
             sum +
-            Number(variant.stock || 0),
+            Number(
+              variant.stock || 0
+            ),
           0
         );
+
+      const oldPrice =
+        Number(
+          newProduct.oldPrice || 0
+        );
+
+      const basePrice =
+        Number(
+          newProduct.price || 0
+        );
+
+      const discount =
+        oldPrice > basePrice &&
+        oldPrice > 0
+          ? Math.round(
+              ((oldPrice -
+                basePrice) /
+                oldPrice) *
+                100
+            )
+          : 0;
 
       const productPayload = {
         name: String(
           newProduct.name
         ).trim(),
 
-        price:
-          Number(newProduct.price) || 0,
+        brand: String(
+          newProduct.brand || ""
+        ).trim(),
 
-        image:
-          String(
-            newProduct.image || ""
-          ).trim(),
+        category: String(
+          newProduct.category || ""
+        ).trim(),
+
+        price: basePrice,
+
+        oldPrice,
+
+        discount,
+
+        image: String(
+          newProduct.image || ""
+        ).trim(),
 
         images: newProduct.image
           ? [
@@ -1079,10 +1510,15 @@ const CreateOrder = () => {
             ]
           : [],
 
-        sku:
+        description:
           String(
-            newProduct.sku || ""
+            newProduct.description ||
+              ""
           ).trim(),
+
+        sku: String(
+          newProduct.sku || ""
+        ).trim(),
 
         tenantId,
 
@@ -1098,6 +1534,8 @@ const CreateOrder = () => {
         variants: hasVariants
           ? variants
           : [],
+
+        details,
       };
 
       const created =
@@ -1126,7 +1564,9 @@ const CreateOrder = () => {
 
         if (
           createdProduct &&
-          getProductId(createdProduct)
+          getProductId(
+            createdProduct
+          )
         ) {
           if (
             Array.isArray(
@@ -1138,7 +1578,8 @@ const CreateOrder = () => {
             const firstVariant =
               createdProduct.variants.find(
                 (v) =>
-                  getVariantStock(v) > 0
+                  getVariantStock(v) >
+                  0
               );
 
             if (firstVariant) {
@@ -1149,7 +1590,8 @@ const CreateOrder = () => {
                   ? firstVariant.sizes.find(
                       (s) =>
                         Number(
-                          s.stock || 0
+                          s.stock ||
+                            0
                         ) > 0
                     )
                   : null;
@@ -1187,8 +1629,10 @@ const CreateOrder = () => {
         type: "error",
         title: "Product create failed",
         message:
-          error?.response?.data?.message ||
-          error?.response?.data?.error ||
+          error?.response?.data
+            ?.message ||
+          error?.response?.data
+            ?.error ||
           error?.message ||
           "নতুন প্রোডাক্ট তৈরি করা যায়নি।",
       });
@@ -1198,7 +1642,7 @@ const CreateOrder = () => {
   };
 
   // =========================================================
-  // DELETE PRODUCT - OPEN CONFIRMATION
+  // DELETE PRODUCT - OPEN
   // =========================================================
 
   const handleDeleteProductClick = (
@@ -1227,7 +1671,7 @@ const CreateOrder = () => {
   };
 
   // =========================================================
-  // CLOSE DELETE MODAL
+  // CLOSE DELETE
   // =========================================================
 
   const closeDeleteModal = () => {
@@ -1237,7 +1681,7 @@ const CreateOrder = () => {
   };
 
   // =========================================================
-  // CONFIRM DELETE PRODUCT
+  // CONFIRM DELETE
   // =========================================================
 
   const confirmDeleteProduct = async () => {
@@ -1264,14 +1708,6 @@ const CreateOrder = () => {
     setDeletingProduct(true);
 
     try {
-      /*
-      IMPORTANT:
-      Backend route:
-      DELETE /api/products/:id
-
-      এখানে MongoDB _id পাঠানো হচ্ছে।
-      */
-
       const response =
         await api.delete(
           `/products/${encodeURIComponent(
@@ -1282,47 +1718,43 @@ const CreateOrder = () => {
       const data =
         response?.data;
 
-      /*
-      Product list থেকে remove
-      */
-
-      setProducts((prev) =>
-        prev.filter(
-          (product) =>
-            String(product._id || "") !==
-            String(mongoId)
-        )
-      );
-
-      /*
-      Deleted product cart-এ থাকলে
-      সেটাও remove
-      */
-
       const deletedProductId =
         getProductId(
           productToDelete
         );
 
-      setCart((prev) =>
+      setProducts((prev) =>
         prev.filter(
-          (item) =>
-            String(item.productId) !==
-            String(deletedProductId)
+          (product) =>
+            String(
+              product._id || ""
+            ) !==
+            String(mongoId)
         )
       );
 
-      /*
-      যদি variant modal-এ deleted product
-      selected থাকে, close করে দাও
-      */
+      setCart((prev) =>
+        prev.filter(
+          (item) =>
+            String(
+              item.productId
+            ) !==
+            String(
+              deletedProductId
+            )
+        )
+      );
 
       if (
         selectedProduct &&
         String(
-          getProductId(selectedProduct)
+          getProductId(
+            selectedProduct
+          )
         ) ===
-          String(deletedProductId)
+          String(
+            deletedProductId
+          )
       ) {
         closeVariantSelector();
       }
@@ -1347,8 +1779,10 @@ const CreateOrder = () => {
       );
 
       const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
+        error?.response?.data
+          ?.message ||
+        error?.response?.data
+          ?.error ||
         error?.message ||
         "Product delete করা যায়নি।";
 
@@ -1376,12 +1810,24 @@ const CreateOrder = () => {
     setCart((prev) =>
       prev.map((item) => {
         const sameItem =
-          String(item.productId) ===
-            String(productId) &&
-          String(item.variantId || "") ===
-            String(variantId || "") &&
-          String(item.size || "") ===
-            String(size || "");
+          String(
+            item.productId
+          ) ===
+            String(
+              productId
+            ) &&
+          String(
+            item.variantId || ""
+          ) ===
+            String(
+              variantId || ""
+            ) &&
+          String(
+            item.size || ""
+          ) ===
+            String(
+              size || ""
+            );
 
         return sameItem
           ? {
@@ -1400,58 +1846,83 @@ const CreateOrder = () => {
   const getCartItemStock = (item) => {
     if (!item) return null;
 
-    const product = products.find(
-      (p) =>
-        String(getProductId(p)) ===
-        String(item.productId)
-    );
+    const product =
+      products.find(
+        (p) =>
+          String(
+            getProductId(p)
+          ) ===
+          String(
+            item.productId
+          )
+      );
 
     if (!product) return null;
 
     if (!item.variantId) {
-      return Number(product.stock || 0);
+      return Number(
+        product.stock || 0
+      );
     }
 
-    const variants = Array.isArray(
-      product.variants
-    )
-      ? product.variants
-      : [];
+    const variants =
+      Array.isArray(
+        product.variants
+      )
+        ? product.variants
+        : [];
 
-    const variant = variants.find(
-      (v) =>
-        String(v.variantId || "") ===
-        String(item.variantId || "")
-    );
+    const variant =
+      variants.find(
+        (v) =>
+          String(
+            v.variantId || ""
+          ) ===
+          String(
+            item.variantId || ""
+          )
+      );
 
     if (!variant) return null;
 
     if (item.size) {
-      const sizes = Array.isArray(
-        variant.sizes
-      )
-        ? variant.sizes
-        : [];
+      const sizes =
+        Array.isArray(
+          variant.sizes
+        )
+          ? variant.sizes
+          : [];
 
-      const size = sizes.find(
-        (s) =>
-          String(s.size || "") ===
-          String(item.size || "")
-      );
+      const size =
+        sizes.find(
+          (s) =>
+            String(
+              s.size || ""
+            ) ===
+            String(
+              item.size || ""
+            )
+        );
 
       return size
-        ? Number(size.stock || 0)
+        ? Number(
+            size.stock || 0
+          )
         : null;
     }
 
-    return getVariantStock(variant);
+    return getVariantStock(
+      variant
+    );
   };
 
   // =========================================================
   // INCREASE
   // =========================================================
 
-  const increaseCartQuantity = (item) => {
+  const increaseCartQuantity = (
+    item
+  ) => {
     if (!item) return;
 
     const maxStock =
@@ -1459,8 +1930,9 @@ const CreateOrder = () => {
 
     if (
       maxStock !== null &&
-      Number(item.quantity || 0) >=
-        maxStock
+      Number(
+        item.quantity || 0
+      ) >= maxStock
     ) {
       return;
     }
@@ -1470,7 +1942,9 @@ const CreateOrder = () => {
       item.variantId,
       item.size,
       "quantity",
-      Number(item.quantity || 0) + 1
+      Number(
+        item.quantity || 0
+      ) + 1
     );
   };
 
@@ -1478,7 +1952,9 @@ const CreateOrder = () => {
   // DECREASE
   // =========================================================
 
-  const decreaseCartQuantity = (item) => {
+  const decreaseCartQuantity = (
+    item
+  ) => {
     if (!item) return;
 
     updateCartLine(
@@ -1488,32 +1964,46 @@ const CreateOrder = () => {
       "quantity",
       Math.max(
         1,
-        Number(item.quantity || 1) - 1
+        Number(
+          item.quantity || 1
+        ) - 1
       )
     );
   };
 
   // =========================================================
-  // REMOVE CART LINE
+  // REMOVE CART
   // =========================================================
 
-  const removeCartLine = (item) => {
+  const removeCartLine = (
+    item
+  ) => {
     setCart((prev) =>
       prev.filter(
         (cartItem) =>
           !(
-            String(cartItem.productId) ===
-              String(item.productId) &&
             String(
-              cartItem.variantId || ""
+              cartItem.productId
             ) ===
               String(
-                item.variantId || ""
+                item.productId
               ) &&
             String(
-              cartItem.size || ""
+              cartItem.variantId ||
+                ""
             ) ===
-              String(item.size || "")
+              String(
+                item.variantId ||
+                  ""
+              ) &&
+            String(
+              cartItem.size ||
+                ""
+            ) ===
+              String(
+                item.size ||
+                  ""
+              )
           )
       )
     );
@@ -1526,25 +2016,37 @@ const CreateOrder = () => {
   const subtotal = cart.reduce(
     (sum, item) =>
       sum +
-      Number(item.price || 0) *
-        Number(item.quantity || 0),
+      Number(
+        item.price || 0
+      ) *
+        Number(
+          item.quantity || 0
+        ),
     0
   );
 
   const total =
     subtotal +
-    Number(deliveryCharge || 0) -
-    Number(additionalDiscount || 0);
+    Number(
+      deliveryCharge || 0
+    ) -
+    Number(
+      additionalDiscount || 0
+    );
 
   const due =
     total -
-    Number(advanceAmount || 0);
+    Number(
+      advanceAmount || 0
+    );
 
   // =========================================================
   // PHONE CHECK
   // =========================================================
 
-  const handlePhoneChange = async (value) => {
+  const handlePhoneChange = async (
+    value
+  ) => {
     const digits = String(
       value || ""
     ).replace(/\D/g, "");
@@ -1613,13 +2115,16 @@ const CreateOrder = () => {
 
   const handleSubmit = async () => {
     if (
-      !String(customer.name || "").trim() ||
+      !String(
+        customer.name || ""
+      ).trim() ||
       customer.phone.length !== 11 ||
       cart.length === 0
     ) {
       setStatusModal({
         type: "error",
-        title: "Order information incomplete",
+        title:
+          "Order information incomplete",
         message:
           "নাম, ১১ ডিজিটের ফোন নাম্বার, এবং অন্তত একটি প্রোডাক্ট আবশ্যক।",
       });
@@ -1633,8 +2138,9 @@ const CreateOrder = () => {
 
       if (
         maxStock !== null &&
-        Number(item.quantity || 0) >
-          maxStock
+        Number(
+          item.quantity || 0
+        ) > maxStock
       ) {
         const variantText =
           item.color
@@ -1647,7 +2153,8 @@ const CreateOrder = () => {
 
         setStatusModal({
           type: "error",
-          title: "Insufficient stock",
+          title:
+            "Insufficient stock",
           message:
             `${item.name}${variantText} এর পর্যাপ্ত stock নেই। বর্তমানে ${maxStock} টি আছে।`,
         });
@@ -1659,7 +2166,8 @@ const CreateOrder = () => {
     if (due < 0) {
       setStatusModal({
         type: "error",
-        title: "Invalid advance amount",
+        title:
+          "Invalid advance amount",
         message:
           "Advance Amount মোট Due-এর চেয়ে বেশি হতে পারবে না।",
       });
@@ -1673,44 +2181,63 @@ const CreateOrder = () => {
       const payload = {
         ...customer,
 
-        items: cart.map((item) => ({
-          productId:
-            item.productId,
+        items: cart.map(
+          (item) => ({
+            productId:
+              Number(
+                item.productId
+              ),
 
-          variantId:
-            item.variantId || "",
+            variantId:
+              item.variantId ||
+              "",
 
-          color:
-            item.color || "",
+            color:
+              item.color ||
+              "",
 
-          colorCode:
-            item.colorCode || "",
+            colorCode:
+              item.colorCode ||
+              "",
 
-          size:
-            item.size || "",
+            size:
+              item.size ||
+              "",
 
-          name:
-            item.name || "",
+            name:
+              item.name ||
+              "",
 
-          image:
-            item.image || "",
+            image:
+              item.image ||
+              "",
 
-          price:
-            Number(item.price || 0),
+            price:
+              Number(
+                item.price || 0
+              ),
 
-          quantity:
-            Number(item.quantity || 1),
-        })),
+            quantity:
+              Number(
+                item.quantity || 1
+              ),
+          })
+        ),
 
         subtotal:
-          Number(subtotal || 0),
+          Number(
+            subtotal || 0
+          ),
 
         deliveryCharge:
-          Number(deliveryCharge || 0),
+          Number(
+            deliveryCharge || 0
+          ),
 
         additionalDiscount:
           Number(
-            additionalDiscount || 0
+            additionalDiscount ||
+              0
           ),
 
         advanceAmount:
@@ -1719,13 +2246,16 @@ const CreateOrder = () => {
           ),
 
         total:
-          Number(due || 0),
+          Number(
+            due || 0
+          ),
 
         status: "pending",
 
         source,
 
-        orderSource: source,
+        orderSource:
+          source,
 
         tenantId,
 
@@ -1764,8 +2294,10 @@ const CreateOrder = () => {
       );
 
       const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
+        error?.response?.data
+          ?.message ||
+        error?.response?.data
+          ?.error ||
         error?.message ||
         "অর্ডার তৈরি করা যায়নি।";
 
@@ -1777,6 +2309,110 @@ const CreateOrder = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // =========================================================
+  // LIST FIELD COMPONENT
+  // =========================================================
+
+  const renderDetailList = (
+    title,
+    field,
+    placeholder,
+    icon
+  ) => {
+    const values =
+      Array.isArray(
+        newProduct.details?.[
+          field
+        ]
+      )
+        ? newProduct.details[field]
+        : [""];
+
+    return (
+      <div className="rounded-xl border border-mist-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {icon}
+
+            <div>
+              <p className="text-xs font-bold text-ink-900">
+                {title}
+              </p>
+
+              <p className="text-[10px] text-slate-400">
+                একাধিক item যোগ করতে পারবেন
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              addDetailListItem(
+                field
+              )
+            }
+            className="flex items-center gap-1 rounded-lg border border-mist-200 bg-mist-50 px-2 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-mist-100"
+          >
+            <Plus size={10} />
+            Add
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {values.map(
+            (
+              value,
+              index
+            ) => (
+              <div
+                key={`${field}-${index}`}
+                className="flex items-center gap-2"
+              >
+                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-mist-100 text-[10px] font-bold text-slate-400">
+                  {index + 1}
+                </span>
+
+                <input
+                  value={value}
+                  onChange={(e) =>
+                    updateDetailListItem(
+                      field,
+                      index,
+                      e.target.value
+                    )
+                  }
+                  placeholder={
+                    placeholder
+                  }
+                  className="flex-1 rounded-lg border border-mist-200 px-2.5 py-2 text-xs outline-none focus:border-brand-500"
+                />
+
+                {values.length >
+                  1 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      removeDetailListItem(
+                        field,
+                        index
+                      )
+                    }
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                  >
+                    <Trash2
+                      size={12}
+                    />
+                  </button>
+                )}
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    );
   };
 
   // =========================================================
@@ -1809,22 +2445,26 @@ const CreateOrder = () => {
 
               <input
                 placeholder="কাস্টমার নাম *"
-                value={customer.name}
+                value={
+                  customer.name
+                }
                 onChange={(e) =>
-                  setCustomer((prev) => ({
-                    ...prev,
-                    name: e.target.value,
-                  }))
+                  setCustomer(
+                    (prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    })
+                  )
                 }
                 className="rounded-lg border border-mist-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
               />
 
-              {/* PHONE */}
-
               <div>
                 <input
                   placeholder="মোবাইল নাম্বার *"
-                  value={customer.phone}
+                  value={
+                    customer.phone
+                  }
                   onChange={(e) =>
                     handlePhoneChange(
                       e.target.value
@@ -1835,7 +2475,8 @@ const CreateOrder = () => {
                   className="w-full rounded-lg border border-mist-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
                 />
 
-                {repeatCount !== null && (
+                {repeatCount !==
+                  null && (
                   <p
                     className={`mt-1 text-xs ${
                       repeatCount > 0
@@ -1843,84 +2484,101 @@ const CreateOrder = () => {
                         : "text-slate-400"
                     }`}
                   >
-                    {repeatCount > 0
+                    {repeatCount >
+                    0
                       ? `এই নাম্বারে আগে ${repeatCount} টি অর্ডার আছে — রিপিট কাস্টমার`
                       : "নতুন কাস্টমার"}
                   </p>
                 )}
 
-                {duplicateTodayCount > 0 && (
+                {duplicateTodayCount >
+                  0 && (
                   <p className="mt-1 flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1.5 text-xs font-semibold text-rose-600">
-                    <AlertTriangle size={12} />
+                    <AlertTriangle
+                      size={12}
+                    />
 
                     আজকে এই নাম্বার থেকে
                     ইতিমধ্যে{" "}
-                    {duplicateTodayCount} টি
-                    অর্ডার এসেছে
+                    {
+                      duplicateTodayCount
+                    }{" "}
+                    টি অর্ডার এসেছে
                   </p>
                 )}
 
                 <FraudCheckPanel
-                  phone={customer.phone}
+                  phone={
+                    customer.phone
+                  }
                 />
               </div>
 
-              {/* DISTRICT */}
-
               <input
                 placeholder="জেলা"
-                value={customer.district}
+                value={
+                  customer.district
+                }
                 onChange={(e) =>
-                  setCustomer((prev) => ({
-                    ...prev,
-                    district:
-                      e.target.value,
-                  }))
+                  setCustomer(
+                    (prev) => ({
+                      ...prev,
+                      district:
+                        e.target.value,
+                    })
+                  )
                 }
                 className="rounded-lg border border-mist-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
               />
-
-              {/* THANA */}
 
               <input
                 placeholder="থানা"
-                value={customer.thana}
+                value={
+                  customer.thana
+                }
                 onChange={(e) =>
-                  setCustomer((prev) => ({
-                    ...prev,
-                    thana:
-                      e.target.value,
-                  }))
+                  setCustomer(
+                    (prev) => ({
+                      ...prev,
+                      thana:
+                        e.target.value,
+                    })
+                  )
                 }
                 className="rounded-lg border border-mist-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
               />
 
-              {/* ADDRESS */}
-
               <textarea
                 placeholder="সম্পূর্ণ ঠিকানা"
-                value={customer.address}
+                value={
+                  customer.address
+                }
                 onChange={(e) =>
-                  setCustomer((prev) => ({
-                    ...prev,
-                    address:
-                      e.target.value,
-                  }))
+                  setCustomer(
+                    (prev) => ({
+                      ...prev,
+                      address:
+                        e.target.value,
+                    })
+                  )
                 }
                 rows={2}
                 className="rounded-lg border border-mist-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 sm:col-span-2"
               />
 
-              {/* NOTE */}
-
               <textarea
                 placeholder="কাস্টমার নোট (ঐচ্ছিক)"
-                value={customer.note}
+                value={
+                  customer.note
+                }
                 onChange={(e) =>
-                  setCustomer((prev) => ({
-                    ...prev,
-                    note: e.target.value,
-                  }))
+                  setCustomer(
+                    (prev) => ({
+                      ...prev,
+                      note:
+                        e.target.value,
+                    })
+                  )
                 }
                 rows={2}
                 className="rounded-lg border border-mist-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 sm:col-span-2"
@@ -1980,103 +2638,533 @@ const CreateOrder = () => {
                   </h4>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    Color, Size এবং Stock
-                    আলাদাভাবে সেট করতে পারবেন।
+                    Product-এর basic information,
+                    details, Color, Size এবং Stock
+                    একসাথে সেট করতে পারবেন।
                   </p>
                 </div>
 
-                {/* BASIC */}
+                {/* ================================================= */}
+                {/* BASIC PRODUCT INFO */}
+                {/* ================================================= */}
 
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="rounded-xl border border-mist-200 bg-white p-4">
 
-                  <input
-                    placeholder="প্রোডাক্ট নাম *"
-                    value={newProduct.name}
-                    onChange={(e) =>
-                      updateNewProduct(
-                        "name",
-                        e.target.value
-                      )
-                    }
-                    className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
-                  />
-
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Base Price *"
-                    value={newProduct.price}
-                    onChange={(e) =>
-                      updateNewProduct(
-                        "price",
-                        e.target.value
-                      )
-                    }
-                    className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
-                  />
-
-                  <input
-                    placeholder="Product Image URL"
-                    value={newProduct.image}
-                    onChange={(e) =>
-                      updateNewProduct(
-                        "image",
-                        e.target.value
-                      )
-                    }
-                    className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500 sm:col-span-2"
-                  />
-
-                  <input
-                    placeholder="SKU (Optional)"
-                    value={newProduct.sku}
-                    onChange={(e) =>
-                      updateNewProduct(
-                        "sku",
-                        e.target.value
-                      )
-                    }
-                    className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
-                  />
-
-                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-mist-200 bg-white px-3 py-2.5">
-                    <input
-                      type="checkbox"
-                      checked={
-                        newProduct.hasVariants
-                      }
-                      onChange={(e) =>
-                        updateNewProduct(
-                          "hasVariants",
-                          e.target.checked
-                        )
-                      }
-                      className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                  <div className="mb-3 flex items-center gap-2">
+                    <FileText
+                      size={15}
+                      className="text-brand-600"
                     />
 
-                    <span className="text-xs font-semibold text-slate-700">
-                      এই Product-এ Variant আছে
-                    </span>
-                  </label>
+                    <h4 className="text-xs font-bold text-ink-900">
+                      Basic Information
+                    </h4>
+                  </div>
 
-                  {!newProduct.hasVariants && (
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+
                     <input
-                      type="number"
-                      min="0"
-                      placeholder="Stock"
-                      value={newProduct.stock}
+                      placeholder="প্রোডাক্ট নাম *"
+                      value={
+                        newProduct.name
+                      }
                       onChange={(e) =>
                         updateNewProduct(
-                          "stock",
+                          "name",
                           e.target.value
                         )
                       }
                       className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
                     />
-                  )}
+
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Base Price *"
+                      value={
+                        newProduct.price
+                      }
+                      onChange={(e) =>
+                        updateNewProduct(
+                          "price",
+                          e.target.value
+                        )
+                      }
+                      className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
+                    />
+
+                    <input
+                      placeholder="Brand"
+                      value={
+                        newProduct.brand
+                      }
+                      onChange={(e) =>
+                        updateNewProduct(
+                          "brand",
+                          e.target.value
+                        )
+                      }
+                      className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
+                    />
+
+                    <input
+                      placeholder="Category"
+                      value={
+                        newProduct.category
+                      }
+                      onChange={(e) =>
+                        updateNewProduct(
+                          "category",
+                          e.target.value
+                        )
+                      }
+                      className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
+                    />
+
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Old Price"
+                      value={
+                        newProduct.oldPrice
+                      }
+                      onChange={(e) =>
+                        updateNewProduct(
+                          "oldPrice",
+                          e.target.value
+                        )
+                      }
+                      className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
+                    />
+
+                    <input
+                      placeholder="SKU (Optional)"
+                      value={
+                        newProduct.sku
+                      }
+                      onChange={(e) =>
+                        updateNewProduct(
+                          "sku",
+                          e.target.value
+                        )
+                      }
+                      className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
+                    />
+
+                    <input
+                      placeholder="Product Image URL"
+                      value={
+                        newProduct.image
+                      }
+                      onChange={(e) =>
+                        updateNewProduct(
+                          "image",
+                          e.target.value
+                        )
+                      }
+                      className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500 sm:col-span-2"
+                    />
+
+                    <textarea
+                      placeholder="Product Description"
+                      value={
+                        newProduct.description
+                      }
+                      onChange={(e) =>
+                        updateNewProduct(
+                          "description",
+                          e.target.value
+                        )
+                      }
+                      rows={4}
+                      className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500 sm:col-span-2"
+                    />
+
+                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-mist-200 bg-white px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={
+                          newProduct.hasVariants
+                        }
+                        onChange={(e) =>
+                          updateNewProduct(
+                            "hasVariants",
+                            e.target.checked
+                          )
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                      />
+
+                      <span className="text-xs font-semibold text-slate-700">
+                        এই Product-এ Variant আছে
+                      </span>
+                    </label>
+
+                    {!newProduct.hasVariants && (
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Stock"
+                        value={
+                          newProduct.stock
+                        }
+                        onChange={(e) =>
+                          updateNewProduct(
+                            "stock",
+                            e.target.value
+                          )
+                        }
+                        className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
+                      />
+                    )}
+                  </div>
                 </div>
 
+                {/* ================================================= */}
+                {/* PRODUCT DETAILS */}
+                {/* ================================================= */}
+
+                <div className="mt-4 rounded-xl border border-mist-200 bg-white p-4">
+
+                  <div className="mb-4 flex items-center gap-2">
+                    <Info
+                      size={15}
+                      className="text-brand-600"
+                    />
+
+                    <div>
+                      <h4 className="text-xs font-bold text-ink-900">
+                        Product Details
+                      </h4>
+
+                      <p className="text-[10px] text-slate-400">
+                        Product Details page-এ এগুলো দেখানো হবে
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* SHORT DESCRIPTION */}
+
+                  <div className="mb-3">
+                    <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                      Short Description
+                    </label>
+
+                    <textarea
+                      value={
+                        newProduct.details
+                          ?.shortDescription ||
+                        ""
+                      }
+                      onChange={(e) =>
+                        updateProductDetail(
+                          "shortDescription",
+                          e.target.value
+                        )
+                      }
+                      placeholder="এক লাইনে product সম্পর্কে সংক্ষিপ্ত description..."
+                      rows={2}
+                      className="w-full rounded-lg border border-mist-200 px-3 py-2.5 text-xs outline-none focus:border-brand-500"
+                    />
+                  </div>
+
+                  {/* OVERVIEW */}
+
+                  <div className="mb-3">
+                    <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                      Overview
+                    </label>
+
+                    <textarea
+                      value={
+                        newProduct.details
+                          ?.overview ||
+                        ""
+                      }
+                      onChange={(e) =>
+                        updateProductDetail(
+                          "overview",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Product-এর বিস্তারিত overview..."
+                      rows={4}
+                      className="w-full rounded-lg border border-mist-200 px-3 py-2.5 text-xs outline-none focus:border-brand-500"
+                    />
+                  </div>
+
+                  {/* FEATURES */}
+
+                  {renderDetailList(
+                    "Features",
+                    "features",
+                    "যেমন: Premium quality material",
+                    <List
+                      size={14}
+                      className="text-brand-600"
+                    />
+                  )}
+
+                  {/* SPECIFICATIONS */}
+
+                  <div className="mt-3 rounded-xl border border-mist-200 bg-mist-50 p-4">
+
+                    <div className="mb-3 flex items-center justify-between">
+
+                      <div className="flex items-center gap-2">
+                        <Settings2
+                          size={14}
+                          className="text-brand-600"
+                        />
+
+                        <div>
+                          <p className="text-xs font-bold text-ink-900">
+                            Specifications
+                          </p>
+
+                          <p className="text-[10px] text-slate-400">
+                            Key এবং Value দিন
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={
+                          addSpecification
+                        }
+                        className="flex items-center gap-1 rounded-lg border border-mist-200 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-mist-100"
+                      >
+                        <Plus size={10} />
+                        Add Spec
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+
+                      {(Array.isArray(
+                        newProduct.details
+                          ?.specifications
+                      )
+                        ? newProduct
+                            .details
+                            .specifications
+                        : [
+                            createEmptySpec(),
+                          ]
+                      ).map(
+                        (
+                          spec,
+                          index
+                        ) => (
+                          <div
+                            key={`spec-${index}`}
+                            className="grid grid-cols-[1fr_1fr_auto] gap-2"
+                          >
+                            <input
+                              placeholder="Key (Brand)"
+                              value={
+                                spec?.key ||
+                                ""
+                              }
+                              onChange={(e) =>
+                                updateSpecification(
+                                  index,
+                                  "key",
+                                  e.target
+                                    .value
+                                )
+                              }
+                              className="rounded-lg border border-mist-200 bg-white px-2.5 py-2 text-xs outline-none focus:border-brand-500"
+                            />
+
+                            <input
+                              placeholder="Value (Sony)"
+                              value={
+                                spec?.value ||
+                                ""
+                              }
+                              onChange={(e) =>
+                                updateSpecification(
+                                  index,
+                                  "value",
+                                  e.target
+                                    .value
+                                )
+                              }
+                              className="rounded-lg border border-mist-200 bg-white px-2.5 py-2 text-xs outline-none focus:border-brand-500"
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeSpecification(
+                                  index
+                                )
+                              }
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                            >
+                              <Trash2
+                                size={12}
+                              />
+                            </button>
+                          </div>
+                        )
+                      )}
+
+                    </div>
+
+                    <p className="mt-2 text-[10px] text-slate-400">
+                      Example: Brand → Sony, Model → WH-1000XM5,
+                      Battery → 40 Hours
+                    </p>
+                  </div>
+
+                  {/* HOW TO USE */}
+
+                  <div className="mt-3">
+                    {renderDetailList(
+                      "How To Use",
+                      "howToUse",
+                      "ব্যবহারের ধাপ লিখুন...",
+                      <Info
+                        size={14}
+                        className="text-brand-600"
+                      />
+                    )}
+                  </div>
+
+                  {/* CARE */}
+
+                  <div className="mt-3">
+                    {renderDetailList(
+                      "Care Instructions",
+                      "careInstructions",
+                      "যেমন: Keep away from water",
+                      <ShieldCheck
+                        size={14}
+                        className="text-brand-600"
+                      />
+                    )}
+                  </div>
+
+                  {/* INCLUDED */}
+
+                  <div className="mt-3">
+                    {renderDetailList(
+                      "What's Included",
+                      "whatsIncluded",
+                      "যেমন: 1x Main Product",
+                      <Package
+                        size={14}
+                        className="text-brand-600"
+                      />
+                    )}
+                  </div>
+
+                  {/* DELIVERY */}
+
+                  <div className="mt-3 rounded-xl border border-mist-200 bg-white p-4">
+
+                    <div className="mb-2 flex items-center gap-2">
+                      <Truck
+                        size={14}
+                        className="text-brand-600"
+                      />
+
+                      <p className="text-xs font-bold text-ink-900">
+                        Delivery Information
+                      </p>
+                    </div>
+
+                    <textarea
+                      value={
+                        newProduct.details
+                          ?.deliveryInfo ||
+                        ""
+                      }
+                      onChange={(e) =>
+                        updateProductDetail(
+                          "deliveryInfo",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Delivery time, charge বা অন্যান্য delivery information..."
+                      rows={3}
+                      className="w-full rounded-lg border border-mist-200 px-3 py-2.5 text-xs outline-none focus:border-brand-500"
+                    />
+                  </div>
+
+                  {/* RETURN */}
+
+                  <div className="mt-3 rounded-xl border border-mist-200 bg-white p-4">
+
+                    <div className="mb-2 flex items-center gap-2">
+                      <RotateCcw
+                        size={14}
+                        className="text-brand-600"
+                      />
+
+                      <p className="text-xs font-bold text-ink-900">
+                        Return Policy
+                      </p>
+                    </div>
+
+                    <textarea
+                      value={
+                        newProduct.details
+                          ?.returnPolicy ||
+                        ""
+                      }
+                      onChange={(e) =>
+                        updateProductDetail(
+                          "returnPolicy",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Product return / replacement policy..."
+                      rows={3}
+                      className="w-full rounded-lg border border-mist-200 px-3 py-2.5 text-xs outline-none focus:border-brand-500"
+                    />
+                  </div>
+
+                  {/* WARRANTY */}
+
+                  <div className="mt-3 rounded-xl border border-mist-200 bg-white p-4">
+
+                    <div className="mb-2 flex items-center gap-2">
+                      <ShieldCheck
+                        size={14}
+                        className="text-brand-600"
+                      />
+
+                      <p className="text-xs font-bold text-ink-900">
+                        Warranty
+                      </p>
+                    </div>
+
+                    <textarea
+                      value={
+                        newProduct.details
+                          ?.warranty ||
+                        ""
+                      }
+                      onChange={(e) =>
+                        updateProductDetail(
+                          "warranty",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Warranty information..."
+                      rows={3}
+                      className="w-full rounded-lg border border-mist-200 px-3 py-2.5 text-xs outline-none focus:border-brand-500"
+                    />
+                  </div>
+                </div>
+
+                {/* ================================================= */}
                 {/* VARIANTS */}
+                {/* ================================================= */}
 
                 {newProduct.hasVariants && (
                   <div className="mt-5 space-y-4">
@@ -2095,7 +3183,9 @@ const CreateOrder = () => {
 
                       <button
                         type="button"
-                        onClick={addNewVariant}
+                        onClick={
+                          addNewVariant
+                        }
                         className="flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-700"
                       >
                         <Plus size={12} />
@@ -2104,8 +3194,10 @@ const CreateOrder = () => {
                     </div>
 
                     {newProduct.variants.map(
-                      (variant, variantIndex) => {
-
+                      (
+                        variant,
+                        variantIndex
+                      ) => {
                         const sizeTotal =
                           Array.isArray(
                             variant.sizes
@@ -2131,9 +3223,10 @@ const CreateOrder = () => {
                             }
                             className="rounded-xl border border-mist-200 bg-white p-4"
                           >
-
                             <div className="mb-3 flex items-center justify-between">
+
                               <div className="flex items-center gap-2">
+
                                 <div
                                   className="h-8 w-8 rounded-full border border-black/10"
                                   style={{
@@ -2152,12 +3245,15 @@ const CreateOrder = () => {
 
                                   <p className="text-[10px] text-slate-400">
                                     Stock:{" "}
-                                    {sizeTotal}
+                                    {
+                                      sizeTotal
+                                    }
                                   </p>
                                 </div>
                               </div>
 
-                              {newProduct.variants
+                              {newProduct
+                                .variants
                                 .length >
                                 1 && (
                                 <button
@@ -2194,6 +3290,7 @@ const CreateOrder = () => {
                               />
 
                               <div className="flex items-center gap-2 rounded-lg border border-mist-200 bg-white px-2.5">
+
                                 <input
                                   type="color"
                                   value={
@@ -2227,8 +3324,8 @@ const CreateOrder = () => {
                               </div>
 
                               <input
-                                type="number"
-                                min="0"
+                                type="text"
+                                inputMode="decimal"
                                 placeholder="Variant Price"
                                 value={
                                   variant.price
@@ -2237,6 +3334,23 @@ const CreateOrder = () => {
                                   updateNewVariant(
                                     variantIndex,
                                     "price",
+                                    e.target.value
+                                  )
+                                }
+                                className="rounded-lg border border-mist-200 px-2.5 py-2 text-xs outline-none focus:border-brand-500"
+                              />
+
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="Variant Old Price"
+                                value={
+                                  variant.oldPrice
+                                }
+                                onChange={(e) =>
+                                  updateNewVariant(
+                                    variantIndex,
+                                    "oldPrice",
                                     e.target.value
                                   )
                                 }
@@ -2256,13 +3370,14 @@ const CreateOrder = () => {
                                     e.target.value
                                   )
                                 }
-                                className="rounded-lg border border-mist-200 px-2.5 py-2 text-xs outline-none focus:border-brand-500 sm:col-span-3"
+                                className="rounded-lg border border-mist-200 px-2.5 py-2 text-xs outline-none focus:border-brand-500 sm:col-span-2"
                               />
                             </div>
 
                             <div className="mt-4 rounded-xl bg-mist-50 p-3">
 
                               <div className="mb-2 flex items-center justify-between">
+
                                 <div className="flex items-center gap-1.5">
                                   <Ruler
                                     size={14}
@@ -2335,7 +3450,8 @@ const CreateOrder = () => {
                                           className="w-24 rounded-lg border border-mist-200 bg-white px-2.5 py-2 text-xs outline-none focus:border-brand-500"
                                         />
 
-                                        {variant.sizes
+                                        {variant
+                                          .sizes
                                           .length >
                                           1 && (
                                           <button
@@ -2361,7 +3477,9 @@ const CreateOrder = () => {
                               <p className="mt-2 text-[10px] text-slate-400">
                                 Total stock:{" "}
                                 <strong>
-                                  {sizeTotal}
+                                  {
+                                    sizeTotal
+                                  }
                                 </strong>
                               </p>
                             </div>
@@ -2372,14 +3490,18 @@ const CreateOrder = () => {
                   </div>
                 )}
 
+                {/* ================================================= */}
                 {/* SAVE */}
+                {/* ================================================= */}
 
                 <button
                   type="button"
                   onClick={
                     handleCreateProduct
                   }
-                  disabled={savingProduct}
+                  disabled={
+                    savingProduct
+                  }
                   className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {savingProduct ? (
@@ -2409,7 +3531,9 @@ const CreateOrder = () => {
               />
 
               <input
-                value={productQuery}
+                value={
+                  productQuery
+                }
                 onChange={(e) =>
                   setProductQuery(
                     e.target.value
@@ -2435,6 +3559,7 @@ const CreateOrder = () => {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+
                 {filteredProducts.map(
                   (product) => {
                     const productId =
@@ -2450,7 +3575,8 @@ const CreateOrder = () => {
                         : [];
 
                     const hasVariants =
-                      variants.length > 0;
+                      variants.length >
+                      0;
 
                     const availableStock =
                       getProductAvailableStock(
@@ -2458,7 +3584,8 @@ const CreateOrder = () => {
                       );
 
                     const outOfStock =
-                      availableStock <= 0;
+                      availableStock <=
+                      0;
 
                     return (
                       <div
@@ -2473,11 +3600,13 @@ const CreateOrder = () => {
                         }`}
                       >
 
-                        {/* DELETE BUTTON */}
+                        {/* DELETE */}
 
                         <button
                           type="button"
-                          onClick={(event) =>
+                          onClick={(
+                            event
+                          ) =>
                             handleDeleteProductClick(
                               product,
                               event
@@ -2489,10 +3618,12 @@ const CreateOrder = () => {
                           title="Delete product"
                           className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg bg-white/95 text-slate-400 shadow-sm ring-1 ring-mist-200 transition hover:bg-rose-50 hover:text-rose-600"
                         >
-                          <Trash2 size={13} />
+                          <Trash2
+                            size={13}
+                          />
                         </button>
 
-                        {/* PRODUCT SELECT */}
+                        {/* SELECT */}
 
                         <button
                           type="button"
@@ -2507,11 +3638,11 @@ const CreateOrder = () => {
                           className="flex w-full flex-col items-center gap-1.5 text-center"
                         >
 
-                          {/* VARIANT COUNT */}
-
                           {hasVariants && (
                             <span className="absolute left-2 top-2 rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-bold text-brand-600">
-                              {variants.length}{" "}
+                              {
+                                variants.length
+                              }{" "}
                               Color
                             </span>
                           )}
@@ -2536,7 +3667,9 @@ const CreateOrder = () => {
                           )}
 
                           <p className="line-clamp-2 text-xs font-semibold text-ink-900">
-                            {product.name}
+                            {
+                              product.name
+                            }
                           </p>
 
                           <p className="text-xs font-bold text-brand-600">
@@ -2628,8 +3761,12 @@ const CreateOrder = () => {
 
                       {item.image ? (
                         <img
-                          src={item.image}
-                          alt={item.name}
+                          src={
+                            item.image
+                          }
+                          alt={
+                            item.name
+                          }
                           className="h-12 w-12 flex-shrink-0 rounded-lg bg-mist-100 object-cover"
                         />
                       ) : (
@@ -2655,7 +3792,9 @@ const CreateOrder = () => {
                                   size={9}
                                 />
 
-                                {item.color}
+                                {
+                                  item.color
+                                }
                               </span>
                             )}
 
@@ -2665,7 +3804,9 @@ const CreateOrder = () => {
                                   size={9}
                                 />
 
-                                {item.size}
+                                {
+                                  item.size
+                                }
                               </span>
                             )}
                           </div>
@@ -2699,7 +3840,8 @@ const CreateOrder = () => {
                           onChange={(e) => {
                             let value =
                               Number(
-                                e.target.value
+                                e.target
+                                  .value
                               ) || 1;
 
                             if (
@@ -2804,7 +3946,9 @@ const CreateOrder = () => {
                 </label>
 
                 <select
-                  value={tenantId}
+                  value={
+                    tenantId
+                  }
                   onChange={(e) =>
                     setTenantId(
                       e.target.value
@@ -2812,14 +3956,22 @@ const CreateOrder = () => {
                   }
                   className="w-full rounded-lg border border-mist-200 px-3 py-2 text-sm outline-none focus:border-brand-500"
                 >
-                  {tenants.map((tenant) => (
-                    <option
-                      key={tenant.id}
-                      value={tenant.id}
-                    >
-                      {tenant.name}
-                    </option>
-                  ))}
+                  {tenants.map(
+                    (tenant) => (
+                      <option
+                        key={
+                          tenant.id
+                        }
+                        value={
+                          tenant.id
+                        }
+                      >
+                        {
+                          tenant.name
+                        }
+                      </option>
+                    )
+                  )}
                 </select>
               </div>
 
@@ -2829,7 +3981,9 @@ const CreateOrder = () => {
                 </label>
 
                 <select
-                  value={source}
+                  value={
+                    source
+                  }
                   onChange={(e) =>
                     setSource(
                       e.target.value
@@ -2838,7 +3992,9 @@ const CreateOrder = () => {
                   className="w-full rounded-lg border border-mist-200 px-3 py-2 text-sm outline-none focus:border-brand-500"
                 >
                   {ORDER_SOURCES.map(
-                    (sourceItem) => (
+                    (
+                      sourceItem
+                    ) => (
                       <option
                         key={
                           sourceItem.id
@@ -2977,7 +4133,9 @@ const CreateOrder = () => {
 
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={
+              handleSubmit
+            }
             disabled={
               submitting ||
               productsLoading
@@ -3014,7 +4172,9 @@ const CreateOrder = () => {
 
                 <div>
                   <h3 className="font-display text-base font-bold text-ink-900">
-                    {selectedProduct.name}
+                    {
+                      selectedProduct.name
+                    }
                   </h3>
 
                   <p className="mt-0.5 text-xs text-slate-400">
@@ -3062,7 +4222,10 @@ const CreateOrder = () => {
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
 
                     {selectedProduct.variants.map(
-                      (variant, index) => {
+                      (
+                        variant,
+                        index
+                      ) => {
                         const stock =
                           getVariantStock(
                             variant
@@ -3092,7 +4255,8 @@ const CreateOrder = () => {
                                 ? "border-brand-500 bg-brand-50 ring-2 ring-brand-500/20"
                                 : "border-mist-200 hover:border-brand-300"
                             } ${
-                              stock <= 0
+                              stock <=
+                              0
                                 ? "cursor-not-allowed opacity-40"
                                 : ""
                             }`}
@@ -3118,7 +4282,9 @@ const CreateOrder = () => {
 
                               <span className="block text-[10px] text-slate-400">
                                 Stock:{" "}
-                                {stock}
+                                {
+                                  stock
+                                }
                               </span>
                             </span>
 
@@ -3187,7 +4353,8 @@ const CreateOrder = () => {
                                 type="button"
                                 key={`${size.size}-${index}`}
                                 disabled={
-                                  stock <= 0
+                                  stock <=
+                                  0
                                 }
                                 onClick={() =>
                                   handleSizeSelect(
@@ -3212,7 +4379,9 @@ const CreateOrder = () => {
 
                                 <span className="mt-0.5 block text-[9px] text-slate-400">
                                   Stock{" "}
-                                  {stock}
+                                  {
+                                    stock
+                                  }
                                 </span>
 
                                 {selected && (
@@ -3287,8 +4456,10 @@ const CreateOrder = () => {
                     (Array.isArray(
                       selectedVariant?.sizes
                     ) &&
-                      selectedVariant.sizes
-                        .length > 0 &&
+                      selectedVariant
+                        .sizes
+                        .length >
+                        0 &&
                       !selectedSize)
                   }
                   className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
@@ -3311,7 +4482,9 @@ const CreateOrder = () => {
       {productToDelete && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
-          onClick={closeDeleteModal}
+          onClick={
+            closeDeleteModal
+          }
         >
           <div
             role="dialog"
@@ -3322,7 +4495,6 @@ const CreateOrder = () => {
               event.stopPropagation()
             }
           >
-            {/* ICON */}
 
             <div className="px-5 pt-5">
 
@@ -3360,13 +4532,13 @@ const CreateOrder = () => {
               </div>
             </div>
 
-            {/* ACTIONS */}
-
             <div className="mt-5 flex items-center justify-end gap-2 border-t border-mist-200 bg-mist-50 px-5 py-4">
 
               <button
                 type="button"
-                onClick={closeDeleteModal}
+                onClick={
+                  closeDeleteModal
+                }
                 disabled={
                   deletingProduct
                 }
@@ -3395,7 +4567,9 @@ const CreateOrder = () => {
                   </>
                 ) : (
                   <>
-                    <Trash2 size={13} />
+                    <Trash2
+                      size={13}
+                    />
                     Delete Product
                   </>
                 )}
@@ -3406,7 +4580,7 @@ const CreateOrder = () => {
       )}
 
       {/* ===================================================== */}
-      {/* SUCCESS / ERROR STATUS MODAL */}
+      {/* SUCCESS / ERROR MODAL */}
       {/* ===================================================== */}
 
       {statusModal && (
@@ -3424,6 +4598,7 @@ const CreateOrder = () => {
               event.stopPropagation()
             }
           >
+
             <div className="flex items-start gap-3">
 
               <div
@@ -3448,18 +4623,24 @@ const CreateOrder = () => {
 
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-bold text-ink-900">
-                  {statusModal.title}
+                  {
+                    statusModal.title
+                  }
                 </h3>
 
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  {statusModal.message}
+                  {
+                    statusModal.message
+                  }
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() =>
-                  setStatusModal(null)
+                  setStatusModal(
+                    null
+                  )
                 }
                 className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-mist-100 hover:text-slate-700"
               >
@@ -3470,7 +4651,9 @@ const CreateOrder = () => {
             <button
               type="button"
               onClick={() =>
-                setStatusModal(null)
+                setStatusModal(
+                  null
+                )
               }
               className={`mt-4 w-full rounded-lg px-3 py-2 text-xs font-bold text-white ${
                 statusModal.type ===
