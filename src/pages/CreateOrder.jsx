@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Search,
   Plus,
@@ -14,7 +13,8 @@ import {
   Check,
   Palette,
   Ruler,
-  Image as ImageIcon,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 
 import AdminLayout from "../layouts/AdminLayout.jsx";
@@ -56,7 +56,10 @@ const emptyNewProduct = {
 };
 
 const CreateOrder = () => {
-  const navigate = useNavigate();
+  // =========================================================
+  // BASIC
+  // =========================================================
+
   const { admin } = useAuth();
 
   const tenants = getTenants();
@@ -155,6 +158,33 @@ const CreateOrder = () => {
     useState(false);
 
   // =========================================================
+  // DELETE PRODUCT
+  // =========================================================
+
+  const [productToDelete, setProductToDelete] =
+    useState(null);
+
+  const [deletingProduct, setDeletingProduct] =
+    useState(false);
+
+  // =========================================================
+  // STATUS MODAL
+  // =========================================================
+
+  const [statusModal, setStatusModal] =
+    useState(null);
+
+  /*
+    statusModal structure:
+
+    {
+      type: "success" | "error",
+      title: "...",
+      message: "..."
+    }
+  */
+
+  // =========================================================
   // LOAD PRODUCTS
   // =========================================================
 
@@ -242,6 +272,18 @@ const CreateOrder = () => {
   };
 
   // =========================================================
+  // MONGODB ID
+  // IMPORTANT:
+  // DELETE এর জন্য _id ব্যবহার হবে
+  // =========================================================
+
+  const getMongoProductId = (product) => {
+    if (!product) return null;
+
+    return product._id || null;
+  };
+
+  // =========================================================
   // VARIANT STOCK
   // =========================================================
 
@@ -306,7 +348,13 @@ const CreateOrder = () => {
     const productId = getProductId(product);
 
     if (!productId) {
-      alert("Product ID পাওয়া যায়নি।");
+      setStatusModal({
+        type: "error",
+        title: "Product ID পাওয়া যায়নি",
+        message:
+          "এই product-এর valid ID পাওয়া যায়নি।",
+      });
+
       return;
     }
 
@@ -320,7 +368,13 @@ const CreateOrder = () => {
       if (
         getProductAvailableStock(product) <= 0
       ) {
-        alert("এই প্রোডাক্টের স্টক নেই।");
+        setStatusModal({
+          type: "error",
+          title: "Stock নেই",
+          message:
+            "এই product-এর কোনো available stock নেই।",
+        });
+
         return;
       }
 
@@ -333,7 +387,13 @@ const CreateOrder = () => {
     }
 
     if (Number(product.stock || 0) <= 0) {
-      alert("এই প্রোডাক্টের স্টক নেই।");
+      setStatusModal({
+        type: "error",
+        title: "Stock নেই",
+        message:
+          "এই product-এর কোনো stock নেই।",
+      });
+
       return;
     }
 
@@ -390,14 +450,26 @@ const CreateOrder = () => {
     const productId = getProductId(product);
 
     if (!productId) {
-      alert("Product ID পাওয়া যায়নি।");
+      setStatusModal({
+        type: "error",
+        title: "Product ID পাওয়া যায়নি",
+        message:
+          "এই product-এর valid ID পাওয়া যায়নি।",
+      });
+
       return;
     }
 
     const stock = Number(product.stock || 0);
 
     if (stock <= 0) {
-      alert("এই প্রোডাক্টের স্টক নেই।");
+      setStatusModal({
+        type: "error",
+        title: "Stock নেই",
+        message:
+          "এই product-এর stock নেই।",
+      });
+
       return;
     }
 
@@ -491,7 +563,13 @@ const CreateOrder = () => {
       : getVariantStock(variant);
 
     if (availableStock <= 0) {
-      alert("এই variant-এর স্টক নেই।");
+      setStatusModal({
+        type: "error",
+        title: "Stock নেই",
+        message:
+          "এই variant-এর stock নেই।",
+      });
+
       return;
     }
 
@@ -555,7 +633,13 @@ const CreateOrder = () => {
     if (!selectedProduct) return;
 
     if (!selectedVariant) {
-      alert("একটি Color নির্বাচন করুন।");
+      setStatusModal({
+        type: "error",
+        title: "Color নির্বাচন করুন",
+        message:
+          "Cart-এ যোগ করার আগে একটি Color নির্বাচন করুন।",
+      });
+
       return;
     }
 
@@ -564,7 +648,13 @@ const CreateOrder = () => {
       selectedVariant.sizes.length > 0;
 
     if (hasSizes && !selectedSize) {
-      alert("একটি Size নির্বাচন করুন।");
+      setStatusModal({
+        type: "error",
+        title: "Size নির্বাচন করুন",
+        message:
+          "এই variant-এর জন্য একটি Size নির্বাচন করুন।",
+      });
+
       return;
     }
 
@@ -573,7 +663,13 @@ const CreateOrder = () => {
       selectedSize &&
       getSizeStock(selectedSize) <= 0
     ) {
-      alert("এই Size-এর স্টক নেই।");
+      setStatusModal({
+        type: "error",
+        title: "Stock নেই",
+        message:
+          "নির্বাচিত Size-এর stock নেই।",
+      });
+
       return;
     }
 
@@ -581,7 +677,13 @@ const CreateOrder = () => {
       !hasSizes &&
       getVariantStock(selectedVariant) <= 0
     ) {
-      alert("এই Color-এর স্টক নেই।");
+      setStatusModal({
+        type: "error",
+        title: "Stock নেই",
+        message:
+          "নির্বাচিত Color-এর stock নেই।",
+      });
+
       return;
     }
 
@@ -807,14 +909,26 @@ const CreateOrder = () => {
     if (
       !String(newProduct.name || "").trim()
     ) {
-      alert("প্রোডাক্টের নাম আবশ্যক।");
+      setStatusModal({
+        type: "error",
+        title: "Product name required",
+        message:
+          "প্রোডাক্টের নাম আবশ্যক।",
+      });
+
       return;
     }
 
     if (
       Number(newProduct.price || 0) <= 0
     ) {
-      alert("প্রোডাক্টের দাম সঠিকভাবে দিন।");
+      setStatusModal({
+        type: "error",
+        title: "Invalid price",
+        message:
+          "প্রোডাক্টের দাম সঠিকভাবে দিন।",
+      });
+
       return;
     }
 
@@ -828,7 +942,13 @@ const CreateOrder = () => {
         !Array.isArray(newProduct.variants) ||
         newProduct.variants.length === 0
       ) {
-        alert("কমপক্ষে একটি Color/Variant যোগ করুন।");
+        setStatusModal({
+          type: "error",
+          title: "Variant required",
+          message:
+            "কমপক্ষে একটি Color/Variant যোগ করুন।",
+        });
+
         return;
       }
 
@@ -916,9 +1036,13 @@ const CreateOrder = () => {
         );
 
       if (invalidVariant) {
-        alert(
-          "প্রতিটি Variant-এর Color দিতে হবে।"
-        );
+        setStatusModal({
+          type: "error",
+          title: "Color required",
+          message:
+            "প্রতিটি Variant-এর Color দিতে হবে।",
+        });
+
         return;
       }
     }
@@ -948,7 +1072,11 @@ const CreateOrder = () => {
           ).trim(),
 
         images: newProduct.image
-          ? [String(newProduct.image).trim()]
+          ? [
+              String(
+                newProduct.image
+              ).trim(),
+            ]
           : [],
 
         sku:
@@ -995,11 +1123,6 @@ const CreateOrder = () => {
         const createdProduct =
           created?.product ||
           created;
-
-        /*
-          If API returns the complete
-          created product, add it.
-        */
 
         if (
           createdProduct &&
@@ -1048,23 +1171,194 @@ const CreateOrder = () => {
       resetNewProduct();
       setShowNewProduct(false);
 
-      alert(
-        "প্রোডাক্ট সফলভাবে তৈরি হয়েছে।"
-      );
+      setStatusModal({
+        type: "success",
+        title: "Product created",
+        message:
+          "প্রোডাক্ট সফলভাবে তৈরি হয়েছে এবং product list-এ যোগ হয়েছে।",
+      });
     } catch (error) {
       console.error(
         "Create product error:",
         error
       );
 
-      alert(
-        error?.response?.data?.message ||
+      setStatusModal({
+        type: "error",
+        title: "Product create failed",
+        message:
+          error?.response?.data?.message ||
           error?.response?.data?.error ||
           error?.message ||
-          "নতুন প্রোডাক্ট তৈরি করা যায়নি।"
-      );
+          "নতুন প্রোডাক্ট তৈরি করা যায়নি।",
+      });
     } finally {
       setSavingProduct(false);
+    }
+  };
+
+  // =========================================================
+  // DELETE PRODUCT - OPEN CONFIRMATION
+  // =========================================================
+
+  const handleDeleteProductClick = (
+    product,
+    event
+  ) => {
+    event?.stopPropagation();
+
+    if (!product) return;
+
+    const mongoId =
+      getMongoProductId(product);
+
+    if (!mongoId) {
+      setStatusModal({
+        type: "error",
+        title: "Delete করা যাচ্ছে না",
+        message:
+          "এই product-এর MongoDB _id পাওয়া যায়নি।",
+      });
+
+      return;
+    }
+
+    setProductToDelete(product);
+  };
+
+  // =========================================================
+  // CLOSE DELETE MODAL
+  // =========================================================
+
+  const closeDeleteModal = () => {
+    if (deletingProduct) return;
+
+    setProductToDelete(null);
+  };
+
+  // =========================================================
+  // CONFIRM DELETE PRODUCT
+  // =========================================================
+
+  const confirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+
+    const mongoId =
+      getMongoProductId(
+        productToDelete
+      );
+
+    if (!mongoId) {
+      setProductToDelete(null);
+
+      setStatusModal({
+        type: "error",
+        title: "Delete failed",
+        message:
+          "MongoDB product ID পাওয়া যায়নি।",
+      });
+
+      return;
+    }
+
+    setDeletingProduct(true);
+
+    try {
+      /*
+      IMPORTANT:
+      Backend route:
+      DELETE /api/products/:id
+
+      এখানে MongoDB _id পাঠানো হচ্ছে।
+      */
+
+      const response =
+        await api.delete(
+          `/products/${encodeURIComponent(
+            mongoId
+          )}`
+        );
+
+      const data =
+        response?.data;
+
+      /*
+      Product list থেকে remove
+      */
+
+      setProducts((prev) =>
+        prev.filter(
+          (product) =>
+            String(product._id || "") !==
+            String(mongoId)
+        )
+      );
+
+      /*
+      Deleted product cart-এ থাকলে
+      সেটাও remove
+      */
+
+      const deletedProductId =
+        getProductId(
+          productToDelete
+        );
+
+      setCart((prev) =>
+        prev.filter(
+          (item) =>
+            String(item.productId) !==
+            String(deletedProductId)
+        )
+      );
+
+      /*
+      যদি variant modal-এ deleted product
+      selected থাকে, close করে দাও
+      */
+
+      if (
+        selectedProduct &&
+        String(
+          getProductId(selectedProduct)
+        ) ===
+          String(deletedProductId)
+      ) {
+        closeVariantSelector();
+      }
+
+      const deletedName =
+        productToDelete.name ||
+        "Product";
+
+      setProductToDelete(null);
+
+      setStatusModal({
+        type: "success",
+        title: "Product deleted",
+        message:
+          data?.message ||
+          `"${deletedName}" সফলভাবে delete করা হয়েছে।`,
+      });
+    } catch (error) {
+      console.error(
+        "Delete product error:",
+        error
+      );
+
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "Product delete করা যায়নি।";
+
+      setStatusModal({
+        type: "error",
+        title: "Delete failed",
+        message,
+      });
+    } finally {
+      setDeletingProduct(false);
     }
   };
 
@@ -1200,7 +1494,7 @@ const CreateOrder = () => {
   };
 
   // =========================================================
-  // REMOVE
+  // REMOVE CART LINE
   // =========================================================
 
   const removeCartLine = (item) => {
@@ -1323,9 +1617,13 @@ const CreateOrder = () => {
       customer.phone.length !== 11 ||
       cart.length === 0
     ) {
-      alert(
-        "নাম, ১১ ডিজিটের ফোন নাম্বার, এবং অন্তত একটি প্রোডাক্ট আবশ্যক।"
-      );
+      setStatusModal({
+        type: "error",
+        title: "Order information incomplete",
+        message:
+          "নাম, ১১ ডিজিটের ফোন নাম্বার, এবং অন্তত একটি প্রোডাক্ট আবশ্যক।",
+      });
+
       return;
     }
 
@@ -1347,18 +1645,25 @@ const CreateOrder = () => {
               })`
             : "";
 
-        alert(
-          `${item.name}${variantText} এর পর্যাপ্ত স্টক নেই। বর্তমানে ${maxStock} টি আছে।`
-        );
+        setStatusModal({
+          type: "error",
+          title: "Insufficient stock",
+          message:
+            `${item.name}${variantText} এর পর্যাপ্ত stock নেই। বর্তমানে ${maxStock} টি আছে।`,
+        });
 
         return;
       }
     }
 
     if (due < 0) {
-      alert(
-        "Advance Amount মোট Due-এর চেয়ে বেশি হতে পারবে না।"
-      );
+      setStatusModal({
+        type: "error",
+        title: "Invalid advance amount",
+        message:
+          "Advance Amount মোট Due-এর চেয়ে বেশি হতে পারবে না।",
+      });
+
       return;
     }
 
@@ -1430,16 +1735,6 @@ const CreateOrder = () => {
           admin?.id || "",
       };
 
-      /*
-        IMPORTANT:
-
-        Order creation DOES NOT
-        decrease stock.
-
-        Stock will be decreased
-        when admin confirms order.
-      */
-
       const response =
         await api.post(
           "/orders",
@@ -1455,11 +1750,13 @@ const CreateOrder = () => {
         data?._id ||
         data?.id;
 
-      navigate(
-        newId
-          ? `/orders/${newId}`
-          : "/orders"
-      );
+      if (newId) {
+        window.location.href =
+          `/orders/${newId}`;
+      } else {
+        window.location.href =
+          "/orders";
+      }
     } catch (error) {
       console.error(
         "Create order error:",
@@ -1472,7 +1769,11 @@ const CreateOrder = () => {
         error?.message ||
         "অর্ডার তৈরি করা যায়নি।";
 
-      alert(message);
+      setStatusModal({
+        type: "error",
+        title: "Order failed",
+        message,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -1738,8 +2039,6 @@ const CreateOrder = () => {
                     className="rounded-lg border border-mist-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
                   />
 
-                  {/* VARIANT TOGGLE */}
-
                   <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-mist-200 bg-white px-3 py-2.5">
                     <input
                       type="checkbox"
@@ -1760,8 +2059,6 @@ const CreateOrder = () => {
                     </span>
                   </label>
 
-                  {/* NORMAL STOCK */}
-
                   {!newProduct.hasVariants && (
                     <input
                       type="number"
@@ -1779,9 +2076,7 @@ const CreateOrder = () => {
                   )}
                 </div>
 
-                {/* ================================================= */}
                 {/* VARIANTS */}
-                {/* ================================================= */}
 
                 {newProduct.hasVariants && (
                   <div className="mt-5 space-y-4">
@@ -1837,8 +2132,6 @@ const CreateOrder = () => {
                             className="rounded-xl border border-mist-200 bg-white p-4"
                           >
 
-                            {/* VARIANT HEADER */}
-
                             <div className="mb-3 flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <div
@@ -1883,8 +2176,6 @@ const CreateOrder = () => {
                               )}
                             </div>
 
-                            {/* COLOR */}
-
                             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
 
                               <input
@@ -1896,8 +2187,7 @@ const CreateOrder = () => {
                                   updateNewVariant(
                                     variantIndex,
                                     "color",
-                                    e.target
-                                      .value
+                                    e.target.value
                                   )
                                 }
                                 className="rounded-lg border border-mist-200 px-2.5 py-2 text-xs outline-none focus:border-brand-500"
@@ -1914,8 +2204,7 @@ const CreateOrder = () => {
                                     updateNewVariant(
                                       variantIndex,
                                       "colorCode",
-                                      e.target
-                                        .value
+                                      e.target.value
                                     )
                                   }
                                   className="h-7 w-8 cursor-pointer border-0 bg-transparent p-0"
@@ -1930,8 +2219,7 @@ const CreateOrder = () => {
                                     updateNewVariant(
                                       variantIndex,
                                       "colorCode",
-                                      e.target
-                                        .value
+                                      e.target.value
                                     )
                                   }
                                   className="w-full border-0 bg-transparent text-xs outline-none"
@@ -1949,8 +2237,7 @@ const CreateOrder = () => {
                                   updateNewVariant(
                                     variantIndex,
                                     "price",
-                                    e.target
-                                      .value
+                                    e.target.value
                                   )
                                 }
                                 className="rounded-lg border border-mist-200 px-2.5 py-2 text-xs outline-none focus:border-brand-500"
@@ -1966,15 +2253,12 @@ const CreateOrder = () => {
                                   updateNewVariant(
                                     variantIndex,
                                     "image",
-                                    e.target
-                                      .value
+                                    e.target.value
                                   )
                                 }
                                 className="rounded-lg border border-mist-200 px-2.5 py-2 text-xs outline-none focus:border-brand-500 sm:col-span-3"
                               />
                             </div>
-
-                            {/* SIZES */}
 
                             <div className="mt-4 rounded-xl bg-mist-50 p-3">
 
@@ -2027,9 +2311,7 @@ const CreateOrder = () => {
                                               variantIndex,
                                               sizeIndex,
                                               "size",
-                                              e
-                                                .target
-                                                .value
+                                              e.target.value
                                             )
                                           }
                                           className="flex-1 rounded-lg border border-mist-200 bg-white px-2.5 py-2 text-xs outline-none focus:border-brand-500"
@@ -2047,9 +2329,7 @@ const CreateOrder = () => {
                                               variantIndex,
                                               sizeIndex,
                                               "stock",
-                                              e
-                                                .target
-                                                .value
+                                              e.target.value
                                             )
                                           }
                                           className="w-24 rounded-lg border border-mist-200 bg-white px-2.5 py-2 text-xs outline-none focus:border-brand-500"
@@ -2181,95 +2461,125 @@ const CreateOrder = () => {
                       availableStock <= 0;
 
                     return (
-                      <button
-                        type="button"
-                        key={productId}
-                        onClick={() =>
-                          handleProductClick(
-                            product
-                          )
+                      <div
+                        key={
+                          product._id ||
+                          productId
                         }
-                        disabled={
+                        className={`relative rounded-xl border p-3 transition ${
                           outOfStock
-                        }
-                        className={`relative flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition ${
-                          outOfStock
-                            ? "cursor-not-allowed border-mist-200 opacity-40"
+                            ? "border-mist-200 opacity-50"
                             : "border-mist-200 hover:border-brand-300 hover:bg-brand-50"
                         }`}
                       >
-                        {/* VARIANT COUNT */}
 
-                        {hasVariants && (
-                          <span className="absolute right-2 top-2 rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-bold text-brand-600">
-                            {variants.length}{" "}
-                            Color
-                          </span>
-                        )}
+                        {/* DELETE BUTTON */}
 
-                        {product.image ? (
-                          <img
-                            src={
-                              product.image
-                            }
-                            alt={
-                              product.name
-                            }
-                            className="h-14 w-14 rounded-lg bg-mist-100 object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-mist-100">
-                            <Package
-                              size={18}
-                              className="text-slate-300"
+                        <button
+                          type="button"
+                          onClick={(event) =>
+                            handleDeleteProductClick(
+                              product,
+                              event
+                            )
+                          }
+                          disabled={
+                            deletingProduct
+                          }
+                          title="Delete product"
+                          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg bg-white/95 text-slate-400 shadow-sm ring-1 ring-mist-200 transition hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+
+                        {/* PRODUCT SELECT */}
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleProductClick(
+                              product
+                            )
+                          }
+                          disabled={
+                            outOfStock
+                          }
+                          className="flex w-full flex-col items-center gap-1.5 text-center"
+                        >
+
+                          {/* VARIANT COUNT */}
+
+                          {hasVariants && (
+                            <span className="absolute left-2 top-2 rounded-full bg-brand-100 px-1.5 py-0.5 text-[9px] font-bold text-brand-600">
+                              {variants.length}{" "}
+                              Color
+                            </span>
+                          )}
+
+                          {product.image ? (
+                            <img
+                              src={
+                                product.image
+                              }
+                              alt={
+                                product.name
+                              }
+                              className="mt-4 h-14 w-14 rounded-lg bg-mist-100 object-cover"
                             />
-                          </div>
-                        )}
-
-                        <p className="line-clamp-2 text-xs font-semibold text-ink-900">
-                          {product.name}
-                        </p>
-
-                        <p className="text-xs font-bold text-brand-600">
-                          {currency(
-                            product.price
-                          )}
-                        </p>
-
-                        {hasVariants &&
-                          !outOfStock && (
-                            <p className="text-[10px] text-slate-400">
-                              Color / Size
-                            </p>
-                          )}
-
-                        {outOfStock ? (
-                          <p className="text-[10px] font-semibold text-rose-500">
-                            স্টক নেই
-                          </p>
-                        ) : (
-                          <p
-                            className={`flex items-center gap-1 text-[10px] ${
-                              availableStock <=
-                              5
-                                ? "text-rose-500"
-                                : "text-slate-400"
-                            }`}
-                          >
-                            {availableStock <=
-                              5 && (
-                              <AlertTriangle
-                                size={9}
+                          ) : (
+                            <div className="mt-4 flex h-14 w-14 items-center justify-center rounded-lg bg-mist-100">
+                              <Package
+                                size={18}
+                                className="text-slate-300"
                               />
+                            </div>
+                          )}
+
+                          <p className="line-clamp-2 text-xs font-semibold text-ink-900">
+                            {product.name}
+                          </p>
+
+                          <p className="text-xs font-bold text-brand-600">
+                            {currency(
+                              product.price
+                            )}
+                          </p>
+
+                          {hasVariants &&
+                            !outOfStock && (
+                              <p className="text-[10px] text-slate-400">
+                                Color / Size
+                              </p>
                             )}
 
-                            Stock{" "}
-                            {
-                              availableStock
-                            }
-                          </p>
-                        )}
-                      </button>
+                          {outOfStock ? (
+                            <p className="text-[10px] font-semibold text-rose-500">
+                              স্টক নেই
+                            </p>
+                          ) : (
+                            <p
+                              className={`flex items-center gap-1 text-[10px] ${
+                                availableStock <=
+                                5
+                                  ? "text-rose-500"
+                                  : "text-slate-400"
+                              }`}
+                            >
+                              {availableStock <=
+                                5 && (
+                                <AlertTriangle
+                                  size={9}
+                                />
+                              )}
+
+                              Stock{" "}
+                              {
+                                availableStock
+                              }
+                            </p>
+                          )}
+                        </button>
+                      </div>
                     );
                   }
                 )}
@@ -2316,8 +2626,6 @@ const CreateOrder = () => {
                       className="flex flex-wrap items-center gap-3 py-3"
                     >
 
-                      {/* IMAGE */}
-
                       {item.image ? (
                         <img
                           src={item.image}
@@ -2332,8 +2640,6 @@ const CreateOrder = () => {
                           />
                         </div>
                       )}
-
-                      {/* NAME */}
 
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-ink-900">
@@ -2365,8 +2671,6 @@ const CreateOrder = () => {
                           </div>
                         )}
                       </div>
-
-                      {/* QUANTITY */}
 
                       <div className="flex items-center gap-1">
 
@@ -2441,8 +2745,6 @@ const CreateOrder = () => {
                         </button>
                       </div>
 
-                      {/* PRICE */}
-
                       <input
                         type="number"
                         min={0}
@@ -2460,8 +2762,6 @@ const CreateOrder = () => {
                         }
                         className="w-24 rounded-lg border border-mist-200 px-2 py-1.5 text-right text-sm"
                       />
-
-                      {/* REMOVE */}
 
                       <button
                         type="button"
@@ -2498,8 +2798,6 @@ const CreateOrder = () => {
 
             <div className="space-y-3">
 
-              {/* TENANT */}
-
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Tenant / Store
@@ -2524,8 +2822,6 @@ const CreateOrder = () => {
                   ))}
                 </select>
               </div>
-
-              {/* SOURCE */}
 
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -2560,8 +2856,6 @@ const CreateOrder = () => {
                 </select>
               </div>
 
-              {/* OFFICE NOTE */}
-
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
                   অফিস নোট
@@ -2583,9 +2877,7 @@ const CreateOrder = () => {
             </div>
           </div>
 
-          {/* ================================================= */}
           {/* PRICING */}
-          {/* ================================================= */}
 
           <div className="animate-in rounded-2xl border border-mist-200 bg-white p-6 shadow-card">
 
@@ -2681,9 +2973,7 @@ const CreateOrder = () => {
             </div>
           </div>
 
-          {/* ================================================= */}
           {/* SUBMIT */}
-          {/* ================================================= */}
 
           <button
             type="button"
@@ -2720,8 +3010,6 @@ const CreateOrder = () => {
 
             <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
 
-              {/* HEADER */}
-
               <div className="flex items-center justify-between border-b border-mist-200 px-5 py-4">
 
                 <div>
@@ -2745,8 +3033,6 @@ const CreateOrder = () => {
                   <X size={17} />
                 </button>
               </div>
-
-              {/* BODY */}
 
               <div className="max-h-[70vh] overflow-y-auto p-5">
 
@@ -2979,8 +3265,6 @@ const CreateOrder = () => {
                 )}
               </div>
 
-              {/* FOOTER */}
-
               <div className="flex items-center justify-end gap-2 border-t border-mist-200 bg-mist-50 px-5 py-4">
 
                 <button
@@ -3019,6 +3303,187 @@ const CreateOrder = () => {
             </div>
           </div>
         )}
+
+      {/* ===================================================== */}
+      {/* DELETE CONFIRMATION MODAL */}
+      {/* ===================================================== */}
+
+      {productToDelete && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
+          onClick={closeDeleteModal}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-product-title"
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            {/* ICON */}
+
+            <div className="px-5 pt-5">
+
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                <Trash2 size={19} />
+              </div>
+
+              <h3
+                id="delete-product-title"
+                className="mt-4 text-base font-bold text-ink-900"
+              >
+                Delete Product?
+              </h3>
+
+              <p className="mt-1.5 text-sm leading-6 text-slate-500">
+                আপনি কি{" "}
+                <span className="font-semibold text-slate-800">
+                  {productToDelete.name ||
+                    "এই product"}
+                </span>{" "}
+                permanently delete করতে চান?
+              </p>
+
+              <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2.5">
+                <p className="flex items-start gap-2 text-xs leading-5 text-rose-600">
+                  <AlertCircle
+                    size={14}
+                    className="mt-0.5 flex-shrink-0"
+                  />
+
+                  এই action-এর পরে product এবং
+                  তার stock adjustment history
+                  delete হয়ে যাবে।
+                </p>
+              </div>
+            </div>
+
+            {/* ACTIONS */}
+
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-mist-200 bg-mist-50 px-5 py-4">
+
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={
+                  deletingProduct
+                }
+                className="rounded-lg border border-mist-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-mist-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  confirmDeleteProduct
+                }
+                disabled={
+                  deletingProduct
+                }
+                className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingProduct ? (
+                  <>
+                    <Loader2
+                      size={13}
+                      className="animate-spin"
+                    />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={13} />
+                    Delete Product
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================== */}
+      {/* SUCCESS / ERROR STATUS MODAL */}
+      {/* ===================================================== */}
+
+      {statusModal && (
+        <div
+          className="fixed inset-0 z-[250] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+          onClick={() =>
+            setStatusModal(null)
+          }
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <div className="flex items-start gap-3">
+
+              <div
+                className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${
+                  statusModal.type ===
+                  "success"
+                    ? "bg-emerald-50 text-emerald-600"
+                    : "bg-rose-50 text-rose-600"
+                }`}
+              >
+                {statusModal.type ===
+                "success" ? (
+                  <CheckCircle2
+                    size={19}
+                  />
+                ) : (
+                  <AlertCircle
+                    size={19}
+                  />
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold text-ink-900">
+                  {statusModal.title}
+                </h3>
+
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  {statusModal.message}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setStatusModal(null)
+                }
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-mist-100 hover:text-slate-700"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setStatusModal(null)
+              }
+              className={`mt-4 w-full rounded-lg px-3 py-2 text-xs font-bold text-white ${
+                statusModal.type ===
+                "success"
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-slate-800 hover:bg-slate-900"
+              }`}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 };
