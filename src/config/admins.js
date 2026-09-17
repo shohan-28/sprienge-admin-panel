@@ -33,7 +33,7 @@ export const ADMINS = [
   buildAdmin(
     "admin-1",
     "ADMIN1",
-    { name: "Rahim Uddin", username: "admin", password: "admin123" },
+    { name: "Shohan Shawon", username: "shohan", password: "shohan1020" },
     ROLES.SUPER_ADMIN
   ),
   buildAdmin(
@@ -45,7 +45,7 @@ export const ADMINS = [
   buildAdmin(
     "admin-3",
     "ADMIN3",
-    { name: "Sabbir Ahmed", username: "courier", password: "courier123" },
+    { name: "Shadhin", username: "shadhin", password: "shadhin1122" },
     ROLES.COURIER_MANAGER
   ),
 ];
