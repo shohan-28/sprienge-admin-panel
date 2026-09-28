@@ -35,7 +35,7 @@ const SidebarContent = ({ onNavigate }) => {
         </div>
         <div>
           <p className="font-display text-[15px] font-bold leading-tight text-white">
-            BDMart
+            Spriengge
           </p>
           <p className="text-[11px] font-medium tracking-wide text-mist-100/50">
             ADMIN PANEL

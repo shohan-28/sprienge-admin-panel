@@ -4,7 +4,7 @@
 
 const currency = (n) => `\u09F3${Number(n || 0).toLocaleString("en-BD")}`;
 
-export const buildLabelHtml = (order, { widthMm = 100, heightMm = 150, brandName = "BDMart", brandLogoUrl = "" } = {}) => {
+export const buildLabelHtml = (order, { widthMm = 100, heightMm = 150, brandName = "Spriengge", brandLogoUrl = "" } = {}) => {
   const itemsRows = (order.items || [])
     .map(
       (it) => `

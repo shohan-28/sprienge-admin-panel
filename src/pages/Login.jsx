@@ -37,7 +37,7 @@ const Login = () => {
             <Store size={22} className="text-white" strokeWidth={2.4} />
           </div>
           <h1 className="font-display text-xl font-bold text-white">
-            BDMart Admin
+            Spriengge Admin
           </h1>
           <p className="mt-1 text-sm text-mist-100/50">
             অর্ডার ম্যানেজ করতে লগইন করুন
@@ -107,7 +107,7 @@ const Login = () => {
         </form>
 
         <p className="mt-6 text-center text-xs text-mist-100/30">
-          BDMart © 2026 — Internal use only · {ADMINS.length} admin accounts configured
+          Spriengge © 2026 — Internal use only · {ADMINS.length} admin accounts configured
         </p>
       </div>
     </div>
