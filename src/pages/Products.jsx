@@ -193,7 +193,8 @@ const normalizeVariant = (variant = {}) => ({
 export default function Products() {
   const { admin } = useAuth();
 
-  const tenants = getTenants();
+  const [tenants, setTenants] = useState([]);
+  const [tenantsLoading, setTenantsLoading] = useState(true);
 
   const canManage = hasPermission(
     admin,
@@ -264,6 +265,58 @@ export default function Products() {
   useEffect(() => {
     loadProducts();
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadTenants = async () => {
+      try {
+        setTenantsLoading(true);
+
+        const response = await getTenants();
+
+        const data = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.tenants)
+          ? response.tenants
+          : [];
+
+        const tenantList = Array.isArray(data)
+          ? data
+              .map((tenant) => ({
+                ...tenant,
+                id:
+                  tenant?._id ||
+                  tenant?.id ||
+                  tenant?.tenantId ||
+                  "",
+              }))
+              .filter((tenant) => tenant.id)
+          : [];
+
+        if (!mounted) return;
+
+        setTenants(tenantList);
+      } catch (err) {
+        console.error("LOAD TENANTS ERROR:", err);
+
+        if (mounted) {
+          setTenants([]);
+        }
+      } finally {
+        if (mounted) {
+          setTenantsLoading(false);
+        }
+      }
+    };
+
+    loadTenants();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
 
   /*
   ==================================================
@@ -336,7 +389,10 @@ export default function Products() {
       ...emptyForm,
 
       tenantId:
-        tenants?.[0]?.id || "",
+        tenants?.[0]?.id ||
+        tenants?.[0]?._id ||
+        tenants?.[0]?.tenantId ||
+        "",
 
       barcode,
 
@@ -1605,7 +1661,10 @@ export default function Products() {
     setForm({
       ...emptyForm,
       tenantId:
-        tenants?.[0]?.id || "",
+        tenants?.[0]?.id ||
+        tenants?.[0]?._id ||
+        tenants?.[0]?.tenantId ||
+        "",
       details: {
         ...emptyDetails,
         features: [],
@@ -2244,24 +2303,29 @@ export default function Products() {
                       className={inputClass}
                     >
                       <option value="">
-                        Select tenant
+                        {tenantsLoading
+                          ? "Loading tenants..."
+                          : "Select tenant"}
                       </option>
 
-                      {tenants.map(
-                        (tenant) => (
-                          <option
-                            key={
-                              tenant.id
-                            }
-                            value={
-                              tenant.id
-                            }
-                          >
-                            {tenant.name ||
-                              tenant.id}
-                          </option>
-                        )
-                      )}
+                      {!tenantsLoading &&
+                        Array.isArray(tenants) &&
+                        tenants.map((tenant) => {
+                          const tenantId =
+                            tenant?._id ||
+                            tenant?.id ||
+                            tenant?.tenantId ||
+                            "";
+
+                          return (
+                            <option
+                              key={tenantId}
+                              value={tenantId}
+                            >
+                              {tenant?.name || tenantId}
+                            </option>
+                          );
+                        })}
                     </select>
                   </Field>
                 </div>

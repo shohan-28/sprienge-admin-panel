@@ -65,8 +65,24 @@ import { runPrintQueue } from "../utils/printQueue.js";
 import { printInvoice, getInvoiceNumber } from "../utils/invoice.js";
 import { getLabelSettings } from "../config/settings.js";
 
+/*
+|--------------------------------------------------------------------------
+| HELPERS
+|--------------------------------------------------------------------------
+*/
+
 const currency = (n) =>
   `৳${Number(n || 0).toLocaleString("en-BD")}`;
+
+/*
+|--------------------------------------------------------------------------
+| STATUS OPTIONS
+|--------------------------------------------------------------------------
+|
+| "confirmed" আলাদাভাবে confirmOrder() দিয়ে update হবে।
+| কারণ backend confirmation-এর সময় stock deduction করে।
+|
+*/
 
 const STATUS_OPTIONS = [
   "pending",
@@ -74,16 +90,26 @@ const STATUS_OPTIONS = [
   "processing",
   "shipped",
   "delivered",
+  "returned",
   "cancelled",
   "duplicate",
 ];
+
+/*
+|--------------------------------------------------------------------------
+| EMPTY FORM
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+| district / thana আর নেই।
+| Customer শুধু full address দেবে।
+|
+*/
 
 const emptyForm = {
   name: "",
   phone: "",
   address: "",
-  thana: "",
-  district: "",
   note: "",
   deliveryCharge: 0,
   items: [],
@@ -101,7 +127,10 @@ const normalizeOrder = (response) => {
   let data = response;
 
   // Axios response
-  if (data?.data !== undefined && data?.config) {
+  if (
+    data?.data !== undefined &&
+    data?.config
+  ) {
     data = data.data;
   }
 
@@ -137,6 +166,34 @@ const normalizeOrder = (response) => {
 
 /*
 |--------------------------------------------------------------------------
+| ERROR MESSAGE HELPER
+|--------------------------------------------------------------------------
+*/
+
+const getApiErrorMessage = (
+  error,
+  fallback,
+) => {
+  const responseData =
+    error?.response?.data;
+
+  if (
+    typeof responseData === "string" &&
+    responseData.trim()
+  ) {
+    return responseData;
+  }
+
+  return (
+    responseData?.message ||
+    responseData?.error ||
+    error?.message ||
+    fallback
+  );
+};
+
+/*
+|--------------------------------------------------------------------------
 | SAFE ORDER FIELDS
 |--------------------------------------------------------------------------
 */
@@ -164,23 +221,6 @@ const getOrderAddress = (data) => {
     data?.address ||
     data?.customerAddress ||
     data?.customer?.address ||
-    ""
-  );
-};
-
-const getOrderThana = (data) => {
-  return (
-    data?.thana ||
-    data?.upazila ||
-    data?.customer?.thana ||
-    ""
-  );
-};
-
-const getOrderDistrict = (data) => {
-  return (
-    data?.district ||
-    data?.customer?.district ||
     ""
   );
 };
@@ -266,10 +306,9 @@ const makeFormFromOrder = (data) => {
     name: getOrderName(order),
     phone: getOrderPhone(order),
     address: getOrderAddress(order),
-    thana: getOrderThana(order),
-    district: getOrderDistrict(order),
     note: getOrderNote(order),
-    deliveryCharge: getOrderDeliveryCharge(order),
+    deliveryCharge:
+      getOrderDeliveryCharge(order),
 
     items: getOrderItems(order).map(
       (item) => ({
@@ -298,8 +337,11 @@ const PremiumAlertModal = ({
 }) => {
   if (!open) return null;
 
-  const isSuccess = type === "success";
-  const isWarning = type === "warning";
+  const isSuccess =
+    type === "success";
+
+  const isWarning =
+    type === "warning";
 
   const iconBox = isSuccess
     ? "bg-emerald-50 text-emerald-600"
@@ -392,8 +434,11 @@ const PremiumConfirmModal = ({
 }) => {
   if (!open) return null;
 
-  const isWarning = type === "warning";
-  const isSuccess = type === "success";
+  const isWarning =
+    type === "warning";
+
+  const isSuccess =
+    type === "success";
 
   const iconBox = isWarning
     ? "bg-amber-50 text-amber-600"
@@ -753,26 +798,11 @@ const OrderDetails = () => {
     setErr("");
 
     try {
-      console.log(
-        "Loading order:",
-        id,
-      );
-
       const response =
         await getOrder(id);
 
-      console.log(
-        "🔥 GET ORDER RAW RESPONSE:",
-        response,
-      );
-
       const data =
         normalizeOrder(response);
-
-      console.log(
-        "🔥 NORMALIZED ORDER:",
-        data,
-      );
 
       if (
         !data ||
@@ -824,21 +854,17 @@ const OrderDetails = () => {
       );
     } catch (error) {
       console.error(
-        "❌ Load order error:",
+        "Load order error:",
         error,
-      );
-
-      console.error(
-        "❌ Error response:",
-        error?.response?.data,
       );
 
       setOrder(null);
 
       setErr(
-        error?.response?.data?.message ||
-          error?.response?.data?.error ||
+        getApiErrorMessage(
+          error,
           "অর্ডারটি খুঁজে পাওয়া যায়নি।",
+        ),
       );
     } finally {
       setLoading(false);
@@ -988,7 +1014,6 @@ const OrderDetails = () => {
           );
 
           setAssignment(null);
-
           setEditing(false);
 
           closeConfirm();
@@ -1008,81 +1033,270 @@ const OrderDetails = () => {
   |--------------------------------------------------------------------------
   | STATUS CHANGE
   |--------------------------------------------------------------------------
+  |
+  | confirmed হলে:
+  | POST /orders/:id/confirm
+  |
+  | অন্য status হলে:
+  | PUT /orders/:id
+  |
+  | এতে stock double decrement হবে না।
+  |
   */
 
-  const handleStatusChange =
-    async (status) => {
-      if (
-        order?.courierStatus &&
-        !admin?.canManageCourier
-      ) {
-        openAlert({
-          title:
-            "Status পরিবর্তন করা যাবে না",
-          message:
-            "Steadfast থেকে status নির্ধারিত হয়ে গেছে। শুধুমাত্র courier manager এই status পরিবর্তন করতে পারবেন।",
-          type: "warning",
-        });
+  const handleStatusChange = async (status) => {
+  if (!status) return;
 
-        return;
-      }
+  if (order?.status === status) {
+    return;
+  }
 
-      setSaving(true);
+  /*
+  |--------------------------------------------------------------------------
+  | CONFIRMED
+  |--------------------------------------------------------------------------
+  |
+  | Confirmed status-এর জন্য confirmOrder() ব্যবহার হবে।
+  | কারণ backend এই route-এর মাধ্যমে stock decrease করে।
+  |
+  */
 
-      try {
-        const response =
-          await updateOrderStatus(
-            id,
-            status,
+  if (status === "confirmed") {
+    if (
+      order?.status === "confirmed"
+    ) {
+      return;
+    }
+
+    openConfirm({
+      title: "অর্ডার কনফার্ম করবেন?",
+      message:
+        "অর্ডারটি কনফার্ম হলে backend stock update করবে। Stock availability ঠিক আছে কিনা নিশ্চিত হয়ে তারপর কনফার্ম করুন।",
+      confirmText: "কনফার্ম করুন",
+      cancelText: "বাতিল",
+      type: "success",
+
+      onConfirm: async () => {
+        closeConfirm();
+
+        if (confirming) return;
+
+        setConfirming(true);
+
+        try {
+          /*
+          |--------------------------------------------------------------------------
+          | EDITING থাকলে আগে edited information save হবে
+          |--------------------------------------------------------------------------
+          */
+
+          if (editing) {
+            const payload = {
+              name: form.name,
+              phone: form.phone,
+              address: form.address,
+              note: form.note,
+              deliveryCharge:
+                Number(
+                  form.deliveryCharge
+                ) || 0,
+              items: form.items,
+              subtotal: itemsSubtotal,
+              total: formTotal,
+            };
+
+            const saveResponse =
+              await updateOrder(id, payload);
+
+            const savedOrder =
+              normalizeOrder(saveResponse);
+
+            if (savedOrder) {
+              setOrder(savedOrder);
+            }
+
+            setEditing(false);
+          }
+
+          /*
+          |--------------------------------------------------------------------------
+          | CONFIRM
+          |--------------------------------------------------------------------------
+          |
+          | এখানে Steadfast call হবে না।
+          | শুধু backend stock validate + decrease + confirmed করবে।
+          |
+          */
+
+          const response =
+            await confirmOrder(id);
+
+          const updated =
+            normalizeOrder(response);
+
+          if (!updated) {
+            throw new Error(
+              "Invalid confirm response"
+            );
+          }
+
+          setOrder(updated);
+
+          setForm(
+            makeFormFromOrder(updated)
           );
 
-        const updated =
-          normalizeOrder(response);
+          if (admin) {
+            setLastEdit(
+              recordEdit(
+                id,
+                admin.id,
+                "confirmed order"
+              )
+            );
+          }
 
-        if (!updated) {
-          throw new Error(
-            "Invalid updated order response",
+          openAlert({
+            title: "Order Confirmed",
+            message:
+              "অর্ডারটি সফলভাবে কনফার্ম হয়েছে এবং backend থেকে stock update হয়েছে।",
+            type: "success",
+          });
+        } catch (error) {
+          console.error(
+            "Confirm order error:",
+            error
           );
+
+          /*
+          |--------------------------------------------------------------------------
+          | যদি save করার পরে confirm fail করে,
+          | server-এর latest order আবার load করি।
+          |--------------------------------------------------------------------------
+          */
+
+          try {
+            const freshResponse =
+              await getOrder(id);
+
+            const freshOrder =
+              normalizeOrder(freshResponse);
+
+            if (freshOrder) {
+              setOrder(freshOrder);
+
+              setForm(
+                makeFormFromOrder(
+                  freshOrder
+                )
+              );
+            }
+          } catch (refreshError) {
+            console.warn(
+              "Refresh after confirm error:",
+              refreshError
+            );
+          }
+
+          openAlert({
+            title:
+              "Order confirm করা যায়নি",
+            message:
+              getApiErrorMessage(
+                error,
+                "অর্ডার কনফার্ম করা যায়নি। Stock availability এবং order তথ্য আবার check করুন।"
+              ),
+            type: "error",
+          });
+        } finally {
+          setConfirming(false);
         }
+      },
+    });
 
-        setOrder(updated);
+    return;
+  }
 
-        setForm(
-          makeFormFromOrder(
-            updated,
-          ),
-        );
+  /*
+  |--------------------------------------------------------------------------
+  | OTHER STATUSES
+  |--------------------------------------------------------------------------
+  |
+  | pending
+  | processing
+  | shipped
+  | delivered
+  | returned
+  | cancelled
+  | duplicate
+  |
+  | এগুলো normal PUT /orders/:id দিয়ে update হবে।
+  |
+  */
 
-        if (admin) {
-          setLastEdit(
-            recordEdit(
-              id,
-              admin.id,
-              `status → ${status}`,
-            ),
-          );
-        }
-      } catch (error) {
-        console.error(
-          "Status update error:",
+  if (saving || confirming) {
+    return;
+  }
+
+  setSaving(true);
+
+  try {
+    const response =
+      await updateOrderStatus(
+        id,
+        status
+      );
+
+    const updated =
+      normalizeOrder(response);
+
+    if (!updated) {
+      throw new Error(
+        "Invalid updated order response"
+      );
+    }
+
+    setOrder(updated);
+
+    setForm(
+      makeFormFromOrder(updated)
+    );
+
+    if (admin) {
+      setLastEdit(
+        recordEdit(
+          id,
+          admin.id,
+          `status → ${status}`
+        )
+      );
+    }
+
+    openAlert({
+      title: "Status updated",
+      message: `অর্ডারের status "${status}" করা হয়েছে।`,
+      type: "success",
+    });
+  } catch (error) {
+    console.error(
+      "Status update error:",
+      error
+    );
+
+    openAlert({
+      title:
+        "Status update ব্যর্থ",
+      message:
+        getApiErrorMessage(
           error,
-        );
-
-        openAlert({
-          title:
-            "Status update ব্যর্থ",
-          message:
-            error?.response?.data
-              ?.message ||
-            error?.response?.data
-              ?.error ||
-            "স্ট্যাটাস আপডেট করা যায়নি। আবার চেষ্টা করুন।",
-          type: "error",
-        });
-      } finally {
-        setSaving(false);
-      }
-    };
+          "স্ট্যাটাস আপডেট করা যায়নি। আবার চেষ্টা করুন।"
+        ),
+      type: "error",
+    });
+  } finally {
+    setSaving(false);
+  }
+};
 
   /*
   |--------------------------------------------------------------------------
@@ -1138,11 +1352,10 @@ const OrderDetails = () => {
           title:
             "অর্ডার ডিলিট করা যায়নি",
           message:
-            error?.response?.data
-              ?.message ||
-            error?.response?.data
-              ?.error ||
-            "অর্ডার মুছে ফেলা যায়নি। আবার চেষ্টা করুন।",
+            getApiErrorMessage(
+              error,
+              "অর্ডার মুছে ফেলা যায়নি।",
+            ),
           type: "error",
         });
       } finally {
@@ -1223,6 +1436,18 @@ const OrderDetails = () => {
           ),
         );
 
+        setReturnForm({
+          returnReason:
+            updated.returnReason ||
+            "",
+          refundAmount:
+            updated.refundAmount ??
+            "",
+          refundStatus:
+            updated.refundStatus ||
+            "pending",
+        });
+
         if (admin) {
           setLastEdit(
             recordEdit(
@@ -1251,11 +1476,10 @@ const OrderDetails = () => {
           title:
             "তথ্য সেভ করা যায়নি",
           message:
-            error?.response?.data
-              ?.message ||
-            error?.response?.data
-              ?.error ||
-            "রিটার্ন/রিফান্ড তথ্য সেভ করা যায়নি।",
+            getApiErrorMessage(
+              error,
+              "রিটার্ন/রিফান্ড তথ্য সেভ করা যায়নি।",
+            ),
           type: "error",
         });
       } finally {
@@ -1324,18 +1548,24 @@ const OrderDetails = () => {
 
   /*
   |--------------------------------------------------------------------------
-  | CONFIRM ORDER
+  | CONFIRM ORDER BUTTON
   |--------------------------------------------------------------------------
+  |
+  | Editing অবস্থায় save করে তারপর confirm।
+  | District/thana আর payload-এ যাবে না।
+  |
   */
 
   const handleConfirmOrder =
     async () => {
+      if (confirming) return;
+
       setConfirming(true);
 
       try {
         /*
         |--------------------------------------------------------------------------
-        | Save edited data first
+        | SAVE EDITED DATA FIRST
         |--------------------------------------------------------------------------
         */
 
@@ -1344,8 +1574,6 @@ const OrderDetails = () => {
             name: form.name,
             phone: form.phone,
             address: form.address,
-            thana: form.thana,
-            district: form.district,
             note: form.note,
             deliveryCharge:
               Number(
@@ -1379,15 +1607,11 @@ const OrderDetails = () => {
 
         /*
         |--------------------------------------------------------------------------
-        | Confirm
+        | BACKEND CONFIRM
         |--------------------------------------------------------------------------
         |
-        | IMPORTANT:
-        | Frontend থেকে আর decrementStock() করা হচ্ছে না।
+        | Stock deduction ONLY backend-এ হবে।
         |
-        | Backend-এর confirmOrder() stock deduction করবে।
-        | এতে double stock deduction হবে না।
-        |--------------------------------------------------------------------------
         */
 
         const response =
@@ -1437,11 +1661,10 @@ const OrderDetails = () => {
           title:
             "Order confirm করা যায়নি",
           message:
-            error?.response?.data
-              ?.message ||
-            error?.response?.data
-              ?.error ||
-            "অর্ডার কনফার্ম করা যায়নি। Stock availability এবং order তথ্য আবার check করুন।",
+            getApiErrorMessage(
+              error,
+              "অর্ডার কনফার্ম করা যায়নি। Stock availability এবং order তথ্য আবার check করুন।",
+            ),
           type: "error",
         });
       } finally {
@@ -1457,7 +1680,38 @@ const OrderDetails = () => {
 
   const handleCreateParcel =
     async (force = false) => {
+      if (creatingParcel) return;
+
       setParcelError("");
+
+      /*
+      |--------------------------------------------------------------------------
+      | SAFETY CHECK
+      |--------------------------------------------------------------------------
+      |
+      | Backend create-parcel confirmed order চায়।
+      |
+      */
+
+      if (
+        order?.status !==
+          "confirmed" &&
+        !force
+      ) {
+        const message =
+          "Steadfast parcel তৈরি করার আগে order-টি Confirmed হতে হবে।";
+
+        setParcelError(message);
+
+        openAlert({
+          title:
+            "Parcel তৈরি করা যাবে না",
+          message,
+          type: "warning",
+        });
+
+        return;
+      }
 
       setCreatingParcel(true);
 
@@ -1492,7 +1746,9 @@ const OrderDetails = () => {
             recordEdit(
               id,
               admin.id,
-              "created Steadfast parcel",
+              force
+                ? "re-created Steadfast parcel"
+                : "created Steadfast parcel",
             ),
           );
         }
@@ -1524,15 +1780,12 @@ const OrderDetails = () => {
         );
 
         const message =
-          error?.response?.data
-            ?.error ||
-          error?.response?.data
-            ?.message ||
-          "Steadfast parcel তৈরি করা যায়নি।";
+          getApiErrorMessage(
+            error,
+            "Steadfast parcel তৈরি করা যায়নি।",
+          );
 
-        setParcelError(
-          message,
-        );
+        setParcelError(message);
 
         openAlert({
           title:
@@ -1636,6 +1889,8 @@ const OrderDetails = () => {
 
   const handleSaveEdit =
     async () => {
+      if (saving) return;
+
       setSaving(true);
 
       try {
@@ -1643,8 +1898,6 @@ const OrderDetails = () => {
           name: form.name,
           phone: form.phone,
           address: form.address,
-          thana: form.thana,
-          district: form.district,
           note: form.note,
           deliveryCharge:
             Number(
@@ -1708,11 +1961,10 @@ const OrderDetails = () => {
           title:
             "Order update করা যায়নি",
           message:
-            error?.response?.data
-              ?.message ||
-            error?.response?.data
-              ?.error ||
-            "অর্ডার আপডেট করা যায়নি।",
+            getApiErrorMessage(
+              error,
+              "অর্ডার আপডেট করা যায়নি।",
+            ),
           type: "error",
         });
       } finally {
@@ -1808,12 +2060,6 @@ const OrderDetails = () => {
 
   const displayAddress =
     getOrderAddress(order);
-
-  const displayThana =
-    getOrderThana(order);
-
-  const displayDistrict =
-    getOrderDistrict(order);
 
   const displayNote =
     getOrderNote(order);
@@ -2055,7 +2301,7 @@ const OrderDetails = () => {
 
                 <div className="sm:col-span-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                    ঠিকানা
+                    সম্পূর্ণ ঠিকানা
                   </p>
 
                   <p className="mt-1 flex items-start gap-1.5 text-sm text-ink-900">
@@ -2064,18 +2310,26 @@ const OrderDetails = () => {
                       className="mt-0.5 flex-shrink-0 text-slate-400"
                     />
 
-                    {displayAddress ||
-                      "ঠিকানা নেই"}
-
-                    {displayThana
-                      ? `, ${displayThana}`
-                      : ""}
-
-                    {displayDistrict
-                      ? `, ${displayDistrict}`
-                      : ""}
+                    <span className="whitespace-pre-wrap">
+                      {displayAddress ||
+                        "ঠিকানা নেই"}
+                    </span>
                   </p>
                 </div>
+
+                {/* DELIVERY AREA */}
+
+                {order.deliveryArea && (
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                      Delivery Area
+                    </p>
+
+                    <p className="mt-1 text-sm font-semibold capitalize text-ink-900">
+                      {order.deliveryArea}
+                    </p>
+                  </div>
+                )}
 
                 {/* NOTE */}
 
@@ -2091,7 +2345,9 @@ const OrderDetails = () => {
                         className="mt-0.5 flex-shrink-0 text-slate-400"
                       />
 
-                      {displayNote}
+                      <span className="whitespace-pre-wrap">
+                        {displayNote}
+                      </span>
                     </p>
                   </div>
                 )}
@@ -2110,7 +2366,9 @@ const OrderDetails = () => {
                         className="mt-0.5 flex-shrink-0 text-amber-500"
                       />
 
-                      {order.officeOrderNote}
+                      <span className="whitespace-pre-wrap">
+                        {order.officeOrderNote}
+                      </span>
                     </p>
                   </div>
                 )}
@@ -2161,62 +2419,14 @@ const OrderDetails = () => {
                   />
                 </div>
 
-                {/* DISTRICT */}
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    জেলা
-                  </label>
-
-                  <input
-                    value={
-                      form.district
-                    }
-                    onChange={(e) =>
-                      setForm(
-                        (current) => ({
-                          ...current,
-                          district:
-                            e.target
-                              .value,
-                        }),
-                      )
-                    }
-                    className="w-full rounded-lg border border-mist-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-                  />
-                </div>
-
-                {/* THANA */}
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    থানা
-                  </label>
-
-                  <input
-                    value={form.thana}
-                    onChange={(e) =>
-                      setForm(
-                        (current) => ({
-                          ...current,
-                          thana:
-                            e.target
-                              .value,
-                        }),
-                      )
-                    }
-                    className="w-full rounded-lg border border-mist-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-                  />
-                </div>
-
-                {/* ADDRESS */}
+                {/* FULL ADDRESS */}
 
                 <div className="sm:col-span-2">
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    ঠিকানা
+                    সম্পূর্ণ ঠিকানা
                   </label>
 
-                  <input
+                  <textarea
                     value={
                       form.address
                     }
@@ -2230,6 +2440,8 @@ const OrderDetails = () => {
                         }),
                       )
                     }
+                    rows={3}
+                    placeholder="বাড়ি/ফ্ল্যাট, রোড, এলাকা, থানা/উপজেলা, জেলা সহ সম্পূর্ণ ঠিকানা লিখুন"
                     className="w-full rounded-lg border border-mist-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
                   />
                 </div>
@@ -2280,6 +2492,7 @@ const OrderDetails = () => {
                     (item, i) => (
                       <div
                         key={
+                          item.variantId ||
                           item.productId ||
                           item._id ||
                           i
@@ -2322,8 +2535,6 @@ const OrderDetails = () => {
                               item.quantity,
                             ) || 0}
                           </p>
-
-                          {/* VARIANT */}
 
                           {(item.variantId ||
                             item.selectedColor ||
@@ -2402,6 +2613,7 @@ const OrderDetails = () => {
                   (item, i) => (
                     <div
                       key={
+                        item.variantId ||
                         item.productId ||
                         item._id ||
                         i
@@ -2484,6 +2696,7 @@ const OrderDetails = () => {
 
                       <div className="flex items-center gap-1">
                         <button
+                          type="button"
                           onClick={() =>
                             updateItemField(
                               i,
@@ -2527,6 +2740,7 @@ const OrderDetails = () => {
                         />
 
                         <button
+                          type="button"
                           onClick={() =>
                             updateItemField(
                               i,
@@ -2567,6 +2781,7 @@ const OrderDetails = () => {
                       {/* DELETE ITEM */}
 
                       <button
+                        type="button"
                         onClick={() =>
                           removeItem(i)
                         }
@@ -2632,12 +2847,22 @@ const OrderDetails = () => {
                     ) &&
                     !admin?.canManageCourier;
 
+                  const isCurrent =
+                    order.status ===
+                    status;
+
+                  const isBusy =
+                    saving ||
+                    confirming;
+
                   return (
                     <button
+                      type="button"
                       key={status}
                       disabled={
-                        saving ||
-                        locked
+                        isBusy ||
+                        locked ||
+                        isCurrent
                       }
                       onClick={() =>
                         handleStatusChange(
@@ -2647,16 +2872,22 @@ const OrderDetails = () => {
                       title={
                         locked
                           ? "শুধুমাত্র কুরিয়ার ম্যানেজার পরিবর্তন করতে পারবেন"
-                          : ""
+                          : isCurrent
+                            ? "এটাই বর্তমান status"
+                            : status ===
+                                "confirmed"
+                              ? "Confirm করার সময় backend stock update করবে"
+                              : ""
                       }
                       className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium capitalize transition ${
-                        order.status ===
-                        status
+                        isCurrent
                           ? "bg-ink-900 text-white"
                           : "bg-mist-50 text-slate-600 hover:bg-mist-100"
                       } ${
-                        locked
-                          ? "cursor-not-allowed opacity-50"
+                        locked ||
+                        isBusy ||
+                        isCurrent
+                          ? "cursor-not-allowed opacity-70"
                           : ""
                       }`}
                     >
@@ -2664,8 +2895,7 @@ const OrderDetails = () => {
                         {status}
                       </span>
 
-                      {order.status ===
-                        status && (
+                      {isCurrent && (
                         <span className="text-xs">
                           ✓ বর্তমান
                         </span>
@@ -2869,6 +3099,7 @@ const OrderDetails = () => {
               />
 
               <button
+                type="button"
                 onClick={
                   handleAddComment
                 }
@@ -2933,6 +3164,7 @@ const OrderDetails = () => {
 
                     <input
                       type="number"
+                      min={0}
                       value={
                         returnForm.refundAmount
                       }
@@ -2988,6 +3220,7 @@ const OrderDetails = () => {
 
                 {canApproveReturns ? (
                   <button
+                    type="button"
                     onClick={
                       handleSaveReturn
                     }
@@ -3032,6 +3265,7 @@ const OrderDetails = () => {
 
               {order.consignmentId && (
                 <button
+                  type="button"
                   onClick={() =>
                     setLiveTracking(
                       (value) =>
@@ -3096,17 +3330,27 @@ const OrderDetails = () => {
                   এখনো কোনো Steadfast parcel তৈরি হয়নি।
                 </p>
 
+                {order.status !==
+                  "confirmed" && (
+                  <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                    Parcel তৈরি করার আগে Order-টি Confirmed করতে হবে।
+                  </p>
+                )}
+
                 {admin?.canManageCourier ? (
                   <button
+                    type="button"
                     onClick={() =>
                       handleCreateParcel(
                         false,
                       )
                     }
                     disabled={
-                      creatingParcel
+                      creatingParcel ||
+                      order.status !==
+                        "confirmed"
                     }
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink-900 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-900/90 disabled:opacity-60"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink-900 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-900/90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {creatingParcel ? (
                       <Loader2
@@ -3269,7 +3513,9 @@ const OrderDetails = () => {
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <a
-                    href={`https://steadfast.com.bd/user/consignment/${order.consignmentId}`}
+                    href={`https://steadfast.com.bd/user/consignment/${encodeURIComponent(
+                      order.consignmentId,
+                    )}`}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-1.5 rounded-lg border border-mist-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-mist-100"
@@ -3284,6 +3530,7 @@ const OrderDetails = () => {
                     (order.courierStatus ===
                     "failed" ? (
                       <button
+                        type="button"
                         onClick={() =>
                           handleCreateParcel(
                             false,
@@ -3294,13 +3541,22 @@ const OrderDetails = () => {
                         }
                         className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
                       >
-                        <RefreshCw
-                          size={12}
-                        />
+                        {creatingParcel ? (
+                          <Loader2
+                            size={12}
+                            className="animate-spin"
+                          />
+                        ) : (
+                          <RefreshCw
+                            size={12}
+                          />
+                        )}
+
                         আবার চেষ্টা করুন
                       </button>
                     ) : (
                       <button
+                        type="button"
                         onClick={() =>
                           openConfirm({
                             title:
@@ -3342,6 +3598,7 @@ const OrderDetails = () => {
           {/* PRINT LABEL */}
 
           <button
+            type="button"
             onClick={
               handlePrintLabel
             }
@@ -3365,6 +3622,7 @@ const OrderDetails = () => {
           {/* PRINT INVOICE */}
 
           <button
+            type="button"
             onClick={
               handlePrintInvoice
             }
@@ -3392,6 +3650,7 @@ const OrderDetails = () => {
             order.status !==
               "duplicate" && (
               <button
+                type="button"
                 onClick={
                   handleConfirmOrder
                 }
@@ -3420,11 +3679,14 @@ const OrderDetails = () => {
 
           {canDelete && (
             <button
+              type="button"
               onClick={() =>
-                setShowDeleteModal(true)
+                setShowDeleteModal(
+                  true,
+                )
               }
               disabled={deleting}
-              className="no-print flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white py-2.5 text-sm font-semibold text-rose-600 transition-all duration-200 hover:bg-rose-50 hover:border-rose-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              className="no-print flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white py-2.5 text-sm font-semibold text-rose-600 transition-all duration-200 hover:border-rose-300 hover:bg-rose-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Trash2 size={15} />
               অর্ডার ডিলিট করুন
@@ -3524,7 +3786,9 @@ const OrderDetails = () => {
       ========================================================= */}
 
       <PremiumConfirmModal
-        open={showConfirmModal}
+        open={
+          showConfirmModal
+        }
         title={
           confirmModal.title
         }
@@ -3540,6 +3804,7 @@ const OrderDetails = () => {
         type={
           confirmModal.type
         }
+        busy={confirming}
         onConfirm={() => {
           if (
             typeof confirmModal.onConfirm ===
@@ -3558,7 +3823,9 @@ const OrderDetails = () => {
       ========================================================= */}
 
       <PremiumAlertModal
-        open={showAlertModal}
+        open={
+          showAlertModal
+        }
         title={
           alertModal.title
         }

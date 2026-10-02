@@ -95,7 +95,8 @@ const CreateOrder = () => {
 
   const { admin } = useAuth();
 
-  const tenants = getTenants();
+  const [tenants, setTenants] = useState([]);
+  const [tenantsLoading, setTenantsLoading] = useState(true);
 
   // =========================================================
   // PRODUCTS
@@ -111,8 +112,6 @@ const CreateOrder = () => {
   const [customer, setCustomer] = useState({
     name: "",
     phone: "",
-    district: "",
-    thana: "",
     address: "",
     note: "",
   });
@@ -121,9 +120,10 @@ const CreateOrder = () => {
   // ORDER SETTINGS
   // =========================================================
 
-  const [tenantId, setTenantId] = useState(
-    tenants[0]?.id || ""
-  );
+  const [tenantId, setTenantId] = useState("");
+
+  const [deliveryArea, setDeliveryArea] =
+    useState("inside-dhaka");
 
   const [source, setSource] = useState("phone");
 
@@ -208,6 +208,69 @@ const CreateOrder = () => {
     useState(null);
 
   // =========================================================
+  // LOAD TENANTS
+  // =========================================================
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadTenants = async () => {
+      setTenantsLoading(true);
+
+      try {
+        const data = await getTenants();
+        const tenantList = Array.isArray(data) ? data : [];
+
+        if (!mounted) return;
+
+        setTenants(tenantList);
+
+        setTenantId((currentId) => {
+          const currentExists = tenantList.some((tenant) => {
+            const id =
+              tenant?._id ||
+              tenant?.id ||
+              tenant?.tenantId;
+
+            return String(id || "") === String(currentId || "");
+          });
+
+          if (currentExists) return currentId;
+
+          const firstTenant = tenantList[0];
+
+          return (
+            firstTenant?._id ||
+            firstTenant?.id ||
+            firstTenant?.tenantId ||
+            ""
+          );
+        });
+      } catch (error) {
+        console.error(
+          "CreateOrder - Failed to load tenants:",
+          error
+        );
+
+        if (mounted) {
+          setTenants([]);
+          setTenantId("");
+        }
+      } finally {
+        if (mounted) {
+          setTenantsLoading(false);
+        }
+      }
+    };
+
+    loadTenants();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // =========================================================
   // LOAD PRODUCTS
   // =========================================================
 
@@ -257,12 +320,19 @@ const CreateOrder = () => {
       return [];
     }
 
-    const inTenant = products.filter(
-      (p) =>
-        !tenantId ||
-        !p.tenantId ||
-        p.tenantId === tenantId
-    );
+    const selectedTenantId = String(tenantId || "").trim();
+
+    if (!selectedTenantId) {
+      return [];
+    }
+
+    const inTenant = products.filter((p) => {
+      const productTenantId = String(
+        p?.tenantId || ""
+      ).trim();
+
+      return productTenantId === selectedTenantId;
+    });
 
     const query = productQuery
       .trim()
@@ -1151,6 +1221,19 @@ const CreateOrder = () => {
   // =========================================================
 
   const handleCreateProduct = async () => {
+    const selectedTenantId = String(tenantId || "").trim();
+
+    if (!selectedTenantId) {
+      setStatusModal({
+        type: "error",
+        title: "Tenant Required",
+        message:
+          "নতুন Product তৈরি করার আগে একটি Tenant / Store নির্বাচন করুন।",
+      });
+
+      return;
+    }
+
     if (
       !String(newProduct.name || "").trim()
     ) {
@@ -1520,7 +1603,7 @@ const CreateOrder = () => {
           newProduct.sku || ""
         ).trim(),
 
-        tenantId,
+        tenantId: selectedTenantId,
 
         stock: hasVariants
           ? variantTotalStock
@@ -2114,165 +2197,174 @@ const CreateOrder = () => {
   // =========================================================
 
   const handleSubmit = async () => {
-    if (
-      !String(
-        customer.name || ""
-      ).trim() ||
-      customer.phone.length !== 11 ||
-      cart.length === 0
-    ) {
+    const customerName = String(customer.name || "").trim();
+    const customerPhone = String(customer.phone || "").trim();
+    const customerAddress = String(customer.address || "").trim();
+    const selectedTenantId = String(tenantId || "").trim();
+    const safeDeliveryArea =
+      deliveryArea === "outside-dhaka"
+        ? "outside-dhaka"
+        : "inside-dhaka";
+
+    if (!customerName) {
       setStatusModal({
         type: "error",
-        title:
-          "Order information incomplete",
-        message:
-          "নাম, ১১ ডিজিটের ফোন নাম্বার, এবং অন্তত একটি প্রোডাক্ট আবশ্যক।",
+        title: "Customer Name Required",
+        message: "কাস্টমারের নাম দিন।",
       });
+      return;
+    }
 
+    if (!/^01\d{9}$/.test(customerPhone)) {
+      setStatusModal({
+        type: "error",
+        title: "Invalid Phone",
+        message: "সঠিক ১১ ডিজিটের বাংলাদেশি মোবাইল নাম্বার দিন।",
+      });
+      return;
+    }
+
+    if (!customerAddress) {
+      setStatusModal({
+        type: "error",
+        title: "Address Required",
+        message: "কাস্টমারের সম্পূর্ণ ঠিকানা লিখুন।",
+      });
+      return;
+    }
+
+    if (!selectedTenantId) {
+      setStatusModal({
+        type: "error",
+        title: "Tenant Required",
+        message:
+          "অর্ডার তৈরি করার আগে একটি Tenant / Store নির্বাচন করুন।",
+      });
+      return;
+    }
+
+    if (!Array.isArray(cart) || cart.length === 0) {
+      setStatusModal({
+        type: "error",
+        title: "Product Required",
+        message: "কমপক্ষে একটি Product Cart-এ যোগ করুন।",
+      });
       return;
     }
 
     for (const item of cart) {
-      const maxStock =
-        getCartItemStock(item);
+      const maxStock = getCartItemStock(item);
 
       if (
         maxStock !== null &&
-        Number(
-          item.quantity || 0
-        ) > maxStock
+        Number(item.quantity || 0) > maxStock
       ) {
-        const variantText =
-          item.color
-            ? ` (${item.color}${
-                item.size
-                  ? ` / ${item.size}`
-                  : ""
-              })`
-            : "";
+        const variantText = item.color
+          ? ` (${item.color}${item.size ? ` / ${item.size}` : ""})`
+          : "";
 
         setStatusModal({
           type: "error",
-          title:
-            "Insufficient stock",
-          message:
-            `${item.name}${variantText} এর পর্যাপ্ত stock নেই। বর্তমানে ${maxStock} টি আছে।`,
+          title: "Insufficient Stock",
+          message: `${item.name}${variantText} এর পর্যাপ্ত stock নেই। বর্তমানে ${maxStock} টি আছে।`,
         });
-
         return;
       }
     }
 
-    if (due < 0) {
+    const safeDeliveryCharge = Math.max(
+      0,
+      Number(deliveryCharge || 0)
+    );
+
+    const safeDiscount = Math.max(
+      0,
+      Number(additionalDiscount || 0)
+    );
+
+    const safeAdvance = Math.max(
+      0,
+      Number(advanceAmount || 0)
+    );
+
+    const calculatedTotal =
+      Number(subtotal || 0) +
+      safeDeliveryCharge -
+      safeDiscount;
+
+    const calculatedDue =
+      calculatedTotal - safeAdvance;
+
+    if (calculatedTotal < 0) {
       setStatusModal({
         type: "error",
-        title:
-          "Invalid advance amount",
-        message:
-          "Advance Amount মোট Due-এর চেয়ে বেশি হতে পারবে না।",
+        title: "Invalid Discount",
+        message: "Discount-এর কারণে Order total negative হতে পারবে না।",
       });
+      return;
+    }
 
+    if (calculatedDue < 0) {
+      setStatusModal({
+        type: "error",
+        title: "Invalid Advance Amount",
+        message: "Advance Amount মোট Due-এর চেয়ে বেশি হতে পারবে না।",
+      });
       return;
     }
 
     setSubmitting(true);
 
     try {
-      const payload = {
-        ...customer,
-
-        items: cart.map(
-          (item) => ({
-            productId:
-              Number(
-                item.productId
-              ),
-
-            variantId:
-              item.variantId ||
-              "",
-
-            color:
-              item.color ||
-              "",
-
-            colorCode:
-              item.colorCode ||
-              "",
-
-            size:
-              item.size ||
-              "",
-
-            name:
-              item.name ||
-              "",
-
-            image:
-              item.image ||
-              "",
-
-            price:
-              Number(
-                item.price || 0
-              ),
-
-            quantity:
-              Number(
-                item.quantity || 1
-              ),
-          })
-        ),
-
-        subtotal:
-          Number(
-            subtotal || 0
-          ),
-
-        deliveryCharge:
-          Number(
-            deliveryCharge || 0
-          ),
-
-        additionalDiscount:
-          Number(
-            additionalDiscount ||
-              0
-          ),
-
-        advanceAmount:
-          Number(
-            advanceAmount || 0
-          ),
-
-        total:
-          Number(
-            due || 0
-          ),
-
-        status: "pending",
-
-        source,
-
-        orderSource:
-          source,
-
-        tenantId,
-
-        officeOrderNote,
-
-        createdBy:
-          admin?.id || "",
-      };
-
-      const response =
-        await api.post(
-          "/orders",
-          payload
+      const orderItems = cart.map((item) => {
+        const itemPrice = Number(item.price || 0);
+        const itemQuantity = Math.max(
+          1,
+          Number(item.quantity || 1)
         );
 
-      const data =
-        response?.data;
+        return {
+          productId: Number(item.productId),
+          variantId: item.variantId || "",
+          selectedColor: item.color || "",
+          selectedColorCode: item.colorCode || "",
+          selectedSize: item.size || "",
+          productName: item.name || "",
+          productImage: item.image || "",
+          price: itemPrice,
+          quantity: itemQuantity,
+          subtotal: itemPrice * itemQuantity,
+        };
+      });
+
+      const payload = {
+        name: customerName,
+        phone: customerPhone,
+        address: customerAddress,
+        note: String(customer.note || "").trim(),
+
+        deliveryArea: safeDeliveryArea,
+
+        items: orderItems,
+
+        subtotal: Number(subtotal || 0),
+        deliveryCharge: safeDeliveryCharge,
+        additionalDiscount: safeDiscount,
+        advanceAmount: safeAdvance,
+        total: Number(calculatedDue || 0),
+
+        status: "pending",
+        source: source || "phone",
+        orderSource: source || "phone",
+        tenantId: selectedTenantId,
+        officeOrderNote: String(officeOrderNote || "").trim(),
+        createdBy: admin?.id || admin?._id || "",
+      };
+
+      console.log("CREATE ORDER PAYLOAD:", payload);
+
+      const response = await api.post("/orders", payload);
+      const data = response?.data;
 
       const newId =
         data?.order?._id ||
@@ -2281,29 +2373,22 @@ const CreateOrder = () => {
         data?.id;
 
       if (newId) {
-        window.location.href =
-          `/orders/${newId}`;
+        window.location.href = `/orders/${newId}`;
       } else {
-        window.location.href =
-          "/orders";
+        window.location.href = "/orders";
       }
     } catch (error) {
-      console.error(
-        "Create order error:",
-        error
-      );
+      console.error("Create order error:", error);
 
       const message =
-        error?.response?.data
-          ?.message ||
-        error?.response?.data
-          ?.error ||
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
         error?.message ||
         "অর্ডার তৈরি করা যায়নি।";
 
       setStatusModal({
         type: "error",
-        title: "Order failed",
+        title: "Order Failed",
         message,
       });
     } finally {
@@ -2514,42 +2599,8 @@ const CreateOrder = () => {
                 />
               </div>
 
-              <input
-                placeholder="জেলা"
-                value={
-                  customer.district
-                }
-                onChange={(e) =>
-                  setCustomer(
-                    (prev) => ({
-                      ...prev,
-                      district:
-                        e.target.value,
-                    })
-                  )
-                }
-                className="rounded-lg border border-mist-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-              />
-
-              <input
-                placeholder="থানা"
-                value={
-                  customer.thana
-                }
-                onChange={(e) =>
-                  setCustomer(
-                    (prev) => ({
-                      ...prev,
-                      thana:
-                        e.target.value,
-                    })
-                  )
-                }
-                className="rounded-lg border border-mist-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-              />
-
               <textarea
-                placeholder="সম্পূর্ণ ঠিকানা"
+                placeholder="সম্পূর্ণ ঠিকানা *"
                 value={
                   customer.address
                 }
@@ -2562,7 +2613,7 @@ const CreateOrder = () => {
                     })
                   )
                 }
-                rows={2}
+                rows={3}
                 className="rounded-lg border border-mist-200 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 sm:col-span-2"
               />
 
@@ -3946,32 +3997,55 @@ const CreateOrder = () => {
                 </label>
 
                 <select
-                  value={
-                    tenantId
-                  }
+                  value={tenantId}
+                  onChange={(e) => setTenantId(e.target.value)}
+                  disabled={tenantsLoading || !tenants.length}
+                  className="w-full rounded-lg border border-mist-200 px-3 py-2 text-sm outline-none focus:border-brand-500 disabled:cursor-not-allowed disabled:bg-mist-50 disabled:text-slate-400"
+                >
+                  {tenants.length > 0 ? (
+                    tenants.map((tenant) => {
+                      const id =
+                        tenant?._id ||
+                        tenant?.id ||
+                        tenant?.tenantId ||
+                        "";
+
+                      return (
+                        <option key={id} value={id}>
+                          {tenant?.name || "Unnamed Store"}
+                        </option>
+                      );
+                    })
+                  ) : (
+                    <option value="">
+                      {tenantsLoading
+                        ? "Tenant লোড হচ্ছে..."
+                        : "কোনো Tenant পাওয়া যায়নি"}
+                    </option>
+                  )}
+                </select>
+
+                {!tenantsLoading && !tenants.length && (
+                  <p className="mt-1.5 text-[10px] text-rose-500">
+                    আগে Settings থেকে একটি Tenant / Store তৈরি করুন।
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  ডেলিভারি এরিয়া
+                </label>
+
+                <select
+                  value={deliveryArea}
                   onChange={(e) =>
-                    setTenantId(
-                      e.target.value
-                    )
+                    setDeliveryArea(e.target.value)
                   }
                   className="w-full rounded-lg border border-mist-200 px-3 py-2 text-sm outline-none focus:border-brand-500"
                 >
-                  {tenants.map(
-                    (tenant) => (
-                      <option
-                        key={
-                          tenant.id
-                        }
-                        value={
-                          tenant.id
-                        }
-                      >
-                        {
-                          tenant.name
-                        }
-                      </option>
-                    )
-                  )}
+                  <option value="inside-dhaka">ঢাকার ভিতরে</option>
+                  <option value="outside-dhaka">ঢাকার বাইরে</option>
                 </select>
               </div>
 
